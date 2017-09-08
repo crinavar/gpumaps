@@ -51,7 +51,7 @@ do
         LAMSTDEV=$(echo "scale=10; sqrt(${LAMVAR})"      | bc)
         LAMSTERR=$(echo "scale=10; ${LAMSTDEV}/sqrt(${SAMPLES})" | bc)
         echo "done"
-        echo "B=${B} N=${N} --> BB ${BBMEAN} [ms] (${BBVAR}, ${BBSTDEV}, ${BBSTERR}) LAM ${LAMMEAN} [ms] (${LAMVAR}, ${LAMSTDEV}, ${LAMSTERR}"
+        echo "B=${B} N=${N} --> BB ${BBMEAN} [ms] (${BBVAR}, ${BBSTDEV}, ${BBSTERR}) LAM ${LAMMEAN} [ms] (${LAMVAR}, ${LAMSTDEV}, ${LAMSTERR})"
         echo "${N}   ${B}    ${BBMEAN}    ${BBVAR}    ${BBSTDEV}   ${BBSTERR}        ${LAMMEAN} ${LAMVAR} ${LAMSTDEV} ${LAMSTERR}" >> data/test2-agreement_B${B}.dat
         echo " "
     done 
