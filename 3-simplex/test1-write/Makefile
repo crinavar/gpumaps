@@ -1,3 +1,5 @@
+# Makefile,
+# Note: to disable the compiler variables DEBUG or VERIFY, set them to =DUMMY. To enable, set them as their name
 DEBUG=DUMMY
 VERIFY=DUMMY
 COMPILER_DEFINES=-D${DEBUG} -D${VERIFY} 
