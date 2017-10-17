@@ -17,9 +17,9 @@ __global__ void k_setoutdata(char *d, unsigned long n, char x, Lambda map){
 // kernel Bounding Box
 template<typename Lambda>
 __global__ void kernel0(const float *data, char *mat, const unsigned long n, const unsigned long V, Lambda map){
-    //if(blockIdx.x > blockIdx.y || blockIdx.y > blockIdx.z){
-    //    return;
-    //}
+    if(blockIdx.x > blockIdx.y || blockIdx.y > blockIdx.z){
+        return;
+    }
 	auto p = map();
     if(p.x < p.y && p.y < p.z){
         unsigned long index = p.z*n*n + p.y*n + p.x;
@@ -35,9 +35,6 @@ template<typename Lambda>
 __global__ void kernel1(const float *data, char *mat, const unsigned long n, const unsigned long V, Lambda map){
     // lambda map
 	auto p = map();
-    //if(p.x == 516 && p.y == 518){
-    //    printf("thread %i  %i  %i\n", p.x, p.y, p.z);
-    //}
     if(p.x < p.y && p.y < p.z){
         unsigned long index = p.z*n*n + p.y*n + p.x;
         if(index < V){

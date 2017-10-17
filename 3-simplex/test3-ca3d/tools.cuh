@@ -11,12 +11,11 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-void printcube(float *d, const unsigned long n);
+void printcube(MTYPE *d, const unsigned long n);
 
 // verifica el tetrahedro inscrito en un cubo de N^3 datos
 template<typename Lambda>
-bool verify(char *d, const unsigned long n, Lambda ver){
-    bool res=true;
+bool verify(MTYPE *d, const unsigned long n, Lambda ver){
     for(unsigned long z=0; z<n; ++z){
         for(unsigned long y=0; y<n; ++y){
             for(unsigned long x=0; x<n; ++x){
@@ -24,23 +23,23 @@ bool verify(char *d, const unsigned long n, Lambda ver){
                 if(x < y && y < z){
                     if(!ver(d[i], x, y, z)){
                         printf("inside data[%lu, %lu, %lu] (%lu) = %i\n", x, y, z, i, d[i]);
-                        res=false;
+                        return false;
                     }
                 }
                 else{
                     if(d[i] != 0){
                         printf("outside data[%lu, %lu, %lu] (%lu) = %i\n", x, y, z, i, d[i]);
-                        res=false;
+                        return false;
                     }
                 }
             }
         }
     }
-    return res;
+    return true;
 }
 
 
-void printcube(char *d, const unsigned long n){
+void printcube(MTYPE *d, const unsigned long n){
     for(unsigned int z=0; z<n; ++z){
         printf("layer z=%i:\n", z);
         for(unsigned int y=0; y<n; ++y){
@@ -54,7 +53,7 @@ void printcube(char *d, const unsigned long n){
     }
 }
 
-void printcube_coords(char *d, const unsigned long n){
+void printcube_coords(float *d, const unsigned long n){
     for(unsigned int z=0; z<n; ++z){
         printf("layer z=%i:\n", z);
         for(unsigned int y=0; y<n; ++y){
