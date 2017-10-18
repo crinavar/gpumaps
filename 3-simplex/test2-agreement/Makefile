@@ -1,6 +1,7 @@
 DEBUG=DUMMY
 VERIFY=DUMMY
-COMPILER_DEFINES=-D${DEBUG} -D${VERIFY} 
+BSIZE3D=8
+COMPILER_DEFINES=-D${DEBUG} -D${VERIFY} -DBSIZE3D=${BSIZE3D}
 NVCCFLAGS=${COMPILER_DEFINES} -arch sm_35 --std=c++11 --expt-extended-lambda 
 NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 -arch sm_35 --std=c++11 --expt-extended-lambda --ptxas-options=-v
 PRECFLAGS=-prec-sqrt=false

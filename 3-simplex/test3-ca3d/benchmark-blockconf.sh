@@ -1,6 +1,6 @@
 #!/bin/sh
-if [ "$#" -ne 9 ]; then
-    echo "run as ./benchmark-blockconf.sh DEV STARTB ENDB DB STARTN ENDN DN KREPEATS SAMPLES"
+if [ "$#" -ne 11 ]; then
+    echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE"
     exit;
 fi
 DEV=$1
@@ -12,12 +12,14 @@ ENDN=$6
 DN=$7
 R=$8
 SAMPLES=$9
-BINARY=test3-ca3d
+BINARY=${10}
+OUTFILE=${11}
 for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
     echo "Benchmarking for B=${B}"
     echo "Compiling with BSIZE3D=$B"
     COMPILE=`make BSIZE3D=8`
+    echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
         echo "B=${B}            DEV=${DEV}  N=${N} R=${R}"
@@ -54,8 +56,9 @@ do
         LAMSTDEV=$(echo "scale=10; sqrt(${LAMVAR})"      | bc)
         LAMSTERR=$(echo "scale=10; ${LAMSTDEV}/sqrt(${SAMPLES})" | bc)
         echo "done"
-        echo "B=${B} N=${N} --> BB ${BBMEAN} [ms] (${BBVAR}, ${BBSTDEV}, ${BBSTERR}) LAM ${LAMMEAN} [ms] (${LAMVAR}, ${LAMSTDEV}, ${LAMSTERR})"
-        echo "${N}   ${B}    ${BBMEAN}    ${BBVAR}    ${BBSTDEV}   ${BBSTERR}        ${LAMMEAN} ${LAMVAR} ${LAMSTDEV} ${LAMSTERR}" >> data/test2-agreement_B${B}.dat
+
+        echo "B=${B} N=${N} --> BB ${BBMEAN} [ms] (${BBVAR}, ${BBSTDEV}, ${BBSTERR}) LAM ${LAMMEAN} [ms] (${LAMVAR}, ${LAMSTDEV}, ${LAMSTERR}"
+        echo "${N}   ${B}    ${BBMEAN}    ${BBVAR}    ${BBSTDEV}   ${BBSTERR}        ${LAMMEAN} ${LAMVAR} ${LAMSTDEV} ${LAMSTERR}" >> data/${OUTFILE}_B${B}.dat
         echo " "
     done 
     echo " "

@@ -1,6 +1,5 @@
 #ifndef KERNELS_CUH
 #define KERNELS_CUH
-
 __device__ inline void work(const float *data, char *mat, unsigned long index, uint3 p){
     mat[index] = 1;
 }

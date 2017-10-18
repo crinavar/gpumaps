@@ -12,7 +12,7 @@
 #define OFFSET -0.4999f
 //#define OFFSET 0.0f
 #define REAL float
-double gpudummy(int D, unsigned long N, unsigned long bsize, int REPEATS, int maptype){
+double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
 	// set device id
 	#ifdef DEBUG
     printf("gpudummy(): choosing device %i...", D); fflush(stdout);
@@ -83,7 +83,7 @@ double gpudummy(int D, unsigned long N, unsigned long bsize, int REPEATS, int ma
 
 
     // use the corresponding pspace generator
-    psgen[maptype](N, block3d, grid3d, bsize);
+    psgen[maptype](N, block3d, grid3d, BSIZE3D);
 	#ifdef DEBUG
     printf("gpudummy(): parallel space: b(%i, %i, %i) g(%i, %i, %i)\n", block3d.x, block3d.y, block3d.z, grid3d.x, grid3d.y, grid3d.z);
     printf("gpudummy(): set outdata init state..."); fflush(stdout);

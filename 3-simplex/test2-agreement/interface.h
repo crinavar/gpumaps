@@ -4,6 +4,6 @@
 //#define DEBUG
 //#define VERIFY
 // cuda side function
-double gpudummy(int D, unsigned long N, unsigned long B, int R, int M);
+double gpudummy(int D, unsigned long N, int R, int M);
 
 #endif
