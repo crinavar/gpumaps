@@ -1,0 +1,5 @@
+
+1) 3-simplex: finish test-4: fma-degradation
+2) 3-simplex: implement test-5: rw-degradation
+3) 2-simplex: implement test-2: euclidean matrix
+4) 2-simplex: implement test-3: celllar automata (John Conway's Game of Life)
