@@ -1,7 +1,7 @@
 DEBUG=DUMMY
 BSIZE1D=256
 BSIZE2D=32
-PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -arch sm_60 -rdc=true -lcudadevrt --std=c++11 --expt-extended-lambda
+PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -arch sm_35 -rdc=true -lcudadevrt --std=c++11 --expt-extended-lambda
 SOURCE=src/main.cu
 BINARY=test1-write
 all:
