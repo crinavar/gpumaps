@@ -230,7 +230,7 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
             unsigned int index = i*n + j;
             if(i > j){
                 if( hmat[index] != 1 ){
-                    #ifndef DEBUG
+                    #ifdef DEBUG
                     fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;
@@ -238,7 +238,7 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
             }
             else if(i < j){
                 if( hmat[index] != 0 ){
-                    #ifndef DEBUG
+                    #ifdef DEBUG
                     fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;
@@ -246,7 +246,7 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
             }
             else if(i == j){
                 if(hmat[index] != 0 && hmat[index] != 1){
-                    #ifndef DEBUG
+                    #ifdef DEBUG
                     fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;

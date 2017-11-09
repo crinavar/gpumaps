@@ -18,7 +18,7 @@ for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
     echo "Benchmarking for B=${B}"
     echo "Compiling with BSIZE3D=$B"
-    COMPILE=`make BSIZE3D=8`
+    COMPILE=`make BSIZE3D=${B}`
     echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do

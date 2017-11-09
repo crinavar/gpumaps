@@ -1,9 +1,0 @@
-./extd <N> <<mode> <mode_param>>  <outfile>
-
-mode 1: bb
-mode 2: utm
-mode 3: ltmn
-mode 4: ltmx
-mode 6: ltmr
-mode 7: rectangle
-mode 8 block: recursive 2^k
