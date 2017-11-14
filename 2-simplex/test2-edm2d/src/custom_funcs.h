@@ -4,6 +4,7 @@
 
 #define DTYPE float2
 #define MTYPE float
+#define EPSILON 0.001
 
 // integer log2
 int cf_log2i(int val){

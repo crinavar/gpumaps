@@ -21,12 +21,12 @@ double bbox(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 double avril(const unsigned int n, const unsigned int REPEATS){
@@ -60,12 +60,12 @@ double avril(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 double lambda_newton(const unsigned int n, const unsigned int REPEATS){
@@ -92,12 +92,12 @@ double lambda_newton(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 double lambda_standard(const unsigned int n, const unsigned int REPEATS){
@@ -124,12 +124,12 @@ double lambda_standard(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
@@ -157,12 +157,12 @@ double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 
@@ -205,12 +205,12 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
     // check result
-    verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time;
+    return time*check;
 }
 
 

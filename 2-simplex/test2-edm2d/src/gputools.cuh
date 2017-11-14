@@ -228,26 +228,29 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
     for(int i=0; i<n; ++i){
         for(int j=0; j<n; ++j){
             unsigned int index = i*n + j;
+            DTYPE a = hdata[i];
+            DTYPE b = hdata[j];
+            float res = sqrtf( (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y) );
             if(i > j){
-                if( hmat[index] != 1 ){
+                if( fabs(hmat[index]-res) >= EPSILON ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f  (res = %f)\n", i, j, index, hmat[index], res);
                     #endif
                     return 0;
                 }
             }
             else if(i < j){
-                if( hmat[index] != 0 ){
+                if( hmat[index] != 0.0f ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f\n", i, j, index, hmat[index], res);
                     #endif
                     return 0;
                 }
             }
             else if(i == j){
-                if(hmat[index] != 0 && hmat[index] != 1){
+                if(hmat[index] != 0.0f && fabs(hmat[index]-res) >= EPSILON){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f\n", i, j, index, hmat[index], res);
                     #endif
                     return 0;
                 }
