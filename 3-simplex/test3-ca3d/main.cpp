@@ -7,9 +7,8 @@
 #include "main.h"
 
 int main(int argc, char **argv){
-	//srand ( time(NULL) );
-	if( argc != 5 ){
-		printf("run as ./prog <dev> <N> <repeats> <maptype>\n<maptype>:\n0 = bounding box\n1 = lambda map\n");
+	if( argc != 7 ){
+		printf("run as ./prog <dev> <N> <repeats> <maptype> <density> <seed>\n<maptype>:\n0 = bounding box\n1 = lambda map\n");
 		exit(1);
 	}
 
@@ -17,7 +16,11 @@ int main(int argc, char **argv){
     unsigned long N = atoi(argv[2]);
     unsigned long repeats = atoi(argv[3]);
     unsigned long maptype = atoi(argv[4]);
-    double ktime = gpudummy(dev, N, repeats, maptype);
+    double density = atof(argv[5]);
+    double seed = atoi(argv[6]);
+
+	srand(seed);
+    double ktime = gpudummy(dev, N, repeats, maptype, density);
 	#ifdef DEBUG
 		printf("maxlong %lu\n", LONG_MAX);
 		printf("\x1b[1m"); fflush(stdout);

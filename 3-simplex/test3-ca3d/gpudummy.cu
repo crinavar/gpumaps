@@ -9,7 +9,10 @@
 #include "tools.cuh"
 #include "kernels.cuh"
 
-double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
+// density
+#define PRINTLIMIT 64
+
+double gpudummy(int D, unsigned long N, int REPEATS, int maptype, double DENSITY){
 	// set device id
 	#ifdef DEBUG
     printf("gpudummy(): choosing device %i...", D); fflush(stdout);
@@ -89,17 +92,28 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
 
 
 
+    // set cells initial states
+    set_randconfig(h_outcube, N, DENSITY);
 
+    /*
+    set_alldead(h_outcube, N);
+    set_cell(h_outcube, N, 5, 11, 14, 1);
+    set_cell(h_outcube, N, 6, 11, 14, 1);
+    set_cell(h_outcube, N, 5, 12, 14, 1);
+    set_cell(h_outcube, N, 6, 12, 14, 1);
 
-    // set initial 'data' array
-    for(int i=0; i<N; ++i){
-        h_data[i] = (float)rand()/RAND_MAX;
-    }
+    set_cell(h_outcube, N, 5, 11, 15, 1);
+    set_cell(h_outcube, N, 6, 11, 15, 1);
+    set_cell(h_outcube, N, 5, 10, 15, 1);
+    set_cell(h_outcube, N, 6, 10, 15, 1);
+    //set_cell(h_outcube, N, 1, 2, 14, 1);
+    //set_cell(h_outcube, N, 0, 2, 15, 1);
+    //set_cell(h_outcube, N, 1, 2, 15, 1);
+    */
 
-
-
-    // set initial state for out data
-    k_setoutdata<<<grid1d, block1d>>>(d_outcube1, Vcube, 0, [] __device__ (){ return (unsigned long) ((unsigned long)blockIdx.x*(unsigned long)blockDim.x + (unsigned long)threadIdx.x); } );
+    // set cube1 (in GPU) initial state to the one generated on CPU
+    cudaMemcpy(d_outcube1,h_outcube, sizeof(MTYPE)*Vcube, cudaMemcpyHostToDevice);
+    // set cube2 initial state to zero
     k_setoutdata<<<grid1d, block1d>>>(d_outcube2, Vcube, 0, [] __device__ (){ return (unsigned long) ((unsigned long)blockIdx.x*(unsigned long)blockDim.x + (unsigned long)threadIdx.x); } );
     //printf("ok\n");
 	#ifdef DEBUG
@@ -117,8 +131,6 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
 	#endif
     cudaMemcpy(d_data,h_data, sizeof(DTYPE)*N, cudaMemcpyHostToDevice);
     gpuErrchk(cudaPeekAtLastError());
-    cudaMemcpy(h_outcube,d_outcube2, sizeof(MTYPE)*Vcube, cudaMemcpyDeviceToHost);
-    gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
 	#ifdef DEBUG
     printf("ok\n");
@@ -130,6 +142,7 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
 
 
     // verify outdata initial state
+    /*
     #ifdef VERIFY
         #ifdef DEBUG
         printf("gpudummy(): verifying matrix state..."); fflush(stdout);
@@ -139,6 +152,7 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
         printf("ok\n"); fflush(stdout);
         #endif
     #endif
+    */
 
 
 
@@ -189,8 +203,6 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
         return (uint3){m.x * blockDim.x + threadIdx.x, m.y * blockDim.y + threadIdx.y, m.z * blockDim.z + threadIdx.z};
     };
 
-
-
     // begin performance tests
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -201,10 +213,21 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
     if(maptype == 0){
         cudaEventRecord(start);
         for(int i=0; i<REPEATS; ++i){
-            // mat1 --> mat2
+            /*
 			kernel0<<<grid3d, block3d>>>(d_data, d_outcube1, d_outcube2, N, Vcube, f0);
 			cudaDeviceSynchronize();
+            #ifdef DEBUG
+                cubestatus(h_outcube, d_outcube2, N, Vcube, PRINTLIMIT);
+            #endif
             // mat2 --> mat1
+			kernel0<<<grid3d, block3d>>>(d_data, d_outcube2, d_outcube1, N, Vcube, f0);
+			cudaDeviceSynchronize();
+            #ifdef DEBUG
+                cubestatus(h_outcube, d_outcube1, N, Vcube, PRINTLIMIT);
+            #endif
+            */
+			kernel0<<<grid3d, block3d>>>(d_data, d_outcube1, d_outcube2, N, Vcube, f0);
+			cudaDeviceSynchronize();
 			kernel0<<<grid3d, block3d>>>(d_data, d_outcube2, d_outcube1, N, Vcube, f0);
 			cudaDeviceSynchronize();
 		}
@@ -216,6 +239,20 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
     else{
         cudaEventRecord(start);
         for(int i=0; i<REPEATS; ++i){
+            // mat1 --> mat2
+            /*
+			kernel1<<<grid3d, block3d>>>(d_data, d_outcube1, d_outcube2, N, Vcube, f1);
+			cudaDeviceSynchronize();
+            #ifdef DEBUG
+                cubestatus(h_outcube, d_outcube2, N, Vcube, PRINTLIMIT);
+            #endif
+            // mat2 --> mat1
+			kernel1<<<grid3d, block3d>>>(d_data, d_outcube2, d_outcube1, N, Vcube, f1);
+			cudaDeviceSynchronize();
+            #ifdef DEBUG
+                cubestatus(h_outcube, d_outcube1, N, Vcube, PRINTLIMIT);
+            #endif
+            */
 			kernel1<<<grid3d, block3d>>>(d_data, d_outcube1, d_outcube2, N, Vcube, f1);
 			cudaDeviceSynchronize();
 			kernel1<<<grid3d, block3d>>>(d_data, d_outcube2, d_outcube1, N, Vcube, f1);
@@ -243,17 +280,13 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
     gpuErrchk(cudaDeviceSynchronize());
 	#ifdef DEBUG
     printf("ok\n");
-    if(N <= 16){
-        printf("cube:\n");
-        printcube(h_outcube, N);
-        //printcube_coords(h_outcube, N);
-    }
 	#endif
 
 
 
 
     // verify result
+    /*
 	#ifdef VERIFY
         #ifdef DEBUG
             printf("gpudummy(): verifying result..."); fflush(stdout);
@@ -263,6 +296,7 @@ double gpudummy(int D, unsigned long N, int REPEATS, int maptype){
         printf("ok\n\n"); fflush(stdout);
         #endif
     #endif
+    */
 
 
 

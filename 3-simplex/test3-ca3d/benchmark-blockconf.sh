@@ -29,7 +29,7 @@ do
         S=0
         for k in `seq 1 ${SAMPLES}`;
         do
-            x=`./${BINARY} ${DEV} ${N} ${R} 0`
+            x=`./${BINARY} ${DEV} ${N} ${R} 0 0.2 7019`
             oldM=$M;
             M=$(echo "scale=10;  $M+($x-$M)/$k"           | bc)
             S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | bc)
@@ -46,7 +46,7 @@ do
         S=0;
         for k in `seq 1 ${SAMPLES}`;
         do
-            x=`./${BINARY} ${DEV} ${N} ${R} 1`
+            x=`./${BINARY} ${DEV} ${N} ${R} 1 0.2 7019`
             oldM=$M;
             M=$(echo "scale=10;  $M+($x-$M)/$k"           | bc)
             S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | bc)
