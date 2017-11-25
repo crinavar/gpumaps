@@ -21,7 +21,7 @@ __device__ inline int h(int k, int a, int b){
     return (1 - (((k - a) >> 31) & 0x1)) * (1 - (((b - k) >> 31) & 0x1));
 }
 
-__device__ void reset_cache(unsigned int *cache, unsigned long cvol, unsigned int val){
+__device__ __inline__ void reset_cache(unsigned int *cache, unsigned long cvol, unsigned int val){
     if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0){
         for(unsigned long i = 0; i<cvol; ++i){
             cache[i] = val;
@@ -29,7 +29,7 @@ __device__ void reset_cache(unsigned int *cache, unsigned long cvol, unsigned in
     }
 }
 
-__device__ unsigned int cache_living_cells(unsigned int *cache, unsigned long cvol){
+__device__ __inline__ unsigned int cache_living_cells(unsigned int *cache, unsigned long cvol){
     unsigned int cont = 0;
     if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0){
         for(unsigned long i = 0; i<cvol; ++i){
@@ -39,7 +39,7 @@ __device__ unsigned int cache_living_cells(unsigned int *cache, unsigned long cv
     return cont;
 }
 
-__device__ void set_halo_faces(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 ltid, uint3 p){
+__device__ __inline__ void set_halo_faces(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 ltid, uint3 p){
     // FREE BOUNDARY CONDITIONS
     // left face
     if(ltid.x == 0){
@@ -47,11 +47,11 @@ __device__ void set_halo_faces(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
     }
     // right face
     if(ltid.x == BSIZE3D-1){
-        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z)]      = p.x > N-1 ? 0 : mat[ GINDEX(p.x+1, p.y, p.z, N) ];
+        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z)]      = p.x >= N-1 ? 0 : mat[ GINDEX(p.x+1, p.y, p.z, N) ];
     }
     // bottom face
     if(ltid.y == BSIZE3D-1){
-        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z)]      = p.y > N-1 ? 0 : mat[ GINDEX(p.x, p.y+1, p.z, N) ];
+        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z)]      = p.y >= N-1 ? 0 : mat[ GINDEX(p.x, p.y+1, p.z, N) ];
     }
     // top face
     if(ltid.y == 0){
@@ -63,12 +63,12 @@ __device__ void set_halo_faces(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
     }
     // back face
     if(ltid.z == BSIZE3D-1){
-        cache[CINDEX(ltid.x, ltid.y, ltid.z + 1)]      = p.z == N-1 ? 0 : mat[ GINDEX(p.x,   p.y, p.z+1, N) ];
+        cache[CINDEX(ltid.x, ltid.y, ltid.z + 1)]      = p.z >= N-1 ? 0 : mat[ GINDEX(p.x,   p.y, p.z+1, N) ];
     }
 }
 
 
-__device__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 ltid, uint3 p){
+__device__ __inline__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 ltid, uint3 p){
     // top left edge
     if((ltid.x == 0 && ltid.y == 0) ){
         // edge
@@ -76,17 +76,17 @@ __device__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
         // top front left corner 
         if(ltid.z == 0){ cache[CINDEX(ltid.x - 1, ltid.y - 1, ltid.z - 1)]  = (p.x == 0 || p.y == 0 || p.z == 0) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z-1  , N) ]; }
         // top back left corner
-        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y - 1, ltid.z + 1)]  = (p.x == 0 || p.y == 0 || p.z == N-1) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z+1  , N) ]; }
+        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y - 1, ltid.z + 1)]  = (p.x == 0 || p.y == 0 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z+1  , N) ]; }
     }
 
     // top right edge
     if(ltid.x == BSIZE3D-1 && ltid.y == 0){
         // edge
-        cache[CINDEX(ltid.x + 1, ltid.y - 1, ltid.z)]  = (p.x == N-1 || p.y == 0) ? 0 : mat[ GINDEX(p.x+1, p.y-1, p.z  , N) ];
+        cache[CINDEX(ltid.x + 1, ltid.y - 1, ltid.z)]                                = (p.x >= N-1 || p.y == 0) ? 0 : mat[ GINDEX(p.x+1, p.y-1, p.z  , N) ];
         // top front right corner
-        if(ltid.z == 0){ cache[CINDEX(ltid.x + 1, ltid.y - 1, ltid.z - 1)]  = (p.x == N-1 || p.y == 0 || p.z == 0) ? 0 : mat[GINDEX(p.x + 1, p.y-1, p.z-1  , N) ]; }
+        if(ltid.z == 0){ cache[CINDEX(ltid.x + 1, ltid.y - 1, ltid.z - 1)]           = (p.x >= N-1 || p.y == 0 || p.z == 0) ? 0 : mat[GINDEX(p.x + 1, p.y-1, p.z-1  , N) ]; }
         // top back right corner
-        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x+1, ltid.y - 1, ltid.z + 1)]  = (p.x == N-1 || p.y == 0 || p.z == N-1) ? 0 : mat[ GINDEX(p.x+1, p.y-1, p.z+1  , N) ]; }
+        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x+1, ltid.y - 1, ltid.z + 1)]     = (p.x >= N-1 || p.y == 0 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x+1, p.y-1, p.z+1  , N) ]; }
     }
 
     // top front edge
@@ -97,7 +97,7 @@ __device__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
 
     // top back edge
     if(ltid.z == BSIZE3D-1 && ltid.y == 0){
-        cache[CINDEX(ltid.x, ltid.y - 1, ltid.z + 1)]  = (p.z == N-1 || p.y == 0) ? 0 : mat[ GINDEX(p.x, p.y-1, p.z+1  , N) ];
+        cache[CINDEX(ltid.x, ltid.y - 1, ltid.z + 1)]  = (p.z >= N-1 || p.y == 0) ? 0 : mat[ GINDEX(p.x, p.y-1, p.z+1  , N) ];
     }
 
 
@@ -105,30 +105,30 @@ __device__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
     // bottom edges
     // bottom left edge
     if(ltid.x == 0 && ltid.y == BSIZE3D-1){
-        cache[CINDEX(ltid.x - 1, ltid.y + 1, ltid.z)]  = (p.x == 0 || p.y == N-1) ? 0 : mat[ GINDEX(p.x-1, p.y+1, p.z  , N) ];
+        cache[CINDEX(ltid.x - 1, ltid.y + 1, ltid.z)]                             = (p.x == 0 || p.y >= N-1) ? 0 : mat[ GINDEX(p.x-1, p.y+1, p.z  , N) ];
         // bottom front left corner
-        if(ltid.z == 0){ cache[CINDEX(ltid.x-1, ltid.y + 1, ltid.z - 1)]  = (p.x == 0 || p.y == N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x-1, p.y+1, p.z-1  , N) ]; }
+        if(ltid.z == 0){ cache[CINDEX(ltid.x-1, ltid.y + 1, ltid.z - 1)]          = (p.x == 0 || p.y >= N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x-1, p.y+1, p.z-1  , N) ]; }
         // bottom back left corner
-        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y + 1, ltid.z + 1)]  = (p.x == 0 || p.y == N-1 || p.z == N-1) ? 0 : mat[GINDEX(p.x-1, p.y+1, p.z+1, N) ]; }
+        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y + 1, ltid.z + 1)]  = (p.x == 0 || p.y >= N-1 || p.z >= N-1) ? 0 : mat[GINDEX(p.x-1, p.y+1, p.z+1, N) ]; }
     }
 
     // bottom right edge
     if(ltid.x == BSIZE3D-1 && ltid.y == BSIZE3D-1){
-        cache[CINDEX(ltid.x + 1, ltid.y + 1, ltid.z)]  = (p.x == N-1 || p.y == N-1) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z  , N) ];
+        cache[CINDEX(ltid.x + 1, ltid.y + 1, ltid.z)]                             = (p.x >= N-1 || p.y >= N-1) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z  , N) ];
         // bottom front right corner
-        if(ltid.z == 0){ cache[CINDEX(ltid.x+1, ltid.y + 1, ltid.z - 1)]  = (p.x == N-1 || p.y == N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z-1  , N) ]; }
+        if(ltid.z == 0){ cache[CINDEX(ltid.x+1, ltid.y + 1, ltid.z - 1)]          = (p.x >= N-1 || p.y >= N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z-1  , N) ]; }
         // bottom back right corner
-        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x+1, ltid.y + 1, ltid.z + 1)]  = (p.x == N-1 || p.y == N-1 || p.z == N-1) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z+1  , N) ]; }
+        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x+1, ltid.y + 1, ltid.z + 1)]  = (p.x >= N-1 || p.y >= N-1 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x+1, p.y+1, p.z+1  , N) ]; }
     }
 
     // bottom front edge
     if(ltid.z == 0 && ltid.y == BSIZE3D-1){
-        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z - 1)]  = (p.y == N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x, p.y+1, p.z-1  , N) ];
+        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z - 1)]  = (p.y >= N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x, p.y+1, p.z-1  , N) ];
     }
 
     // bottom back edge
     if(ltid.z == BSIZE3D-1 && ltid.y == BSIZE3D-1){
-        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z + 1)]  = (p.y == N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x, p.y+1, p.z+1  , N) ];
+        cache[CINDEX(ltid.x, ltid.y + 1, ltid.z + 1)]  = (p.y >= N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x, p.y+1, p.z+1  , N) ];
     }
 
 
@@ -142,21 +142,21 @@ __device__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 l
 
     // front right side
     if(ltid.x == BSIZE3D-1 && ltid.z == 0){
-        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z - 1)]  = (p.x == N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x+1, p.y, p.z-1  , N) ];
+        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z - 1)]  = (p.x >= N-1 || p.z == 0) ? 0 : mat[ GINDEX(p.x+1, p.y, p.z-1  , N) ];
     }
 
     // back left edge
     if( ltid.x == 0 && ltid.z == BSIZE3D-1 ){
-        cache[CINDEX(ltid.x - 1, ltid.y, ltid.z + 1)]  = (p.x == 0 || p.z == N-1) ? 0 : mat[ GINDEX(p.x-1, p.y, p.z+1, N) ];
+        cache[CINDEX(ltid.x - 1, ltid.y, ltid.z + 1)]  = (p.x == 0 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x-1, p.y, p.z+1, N) ];
     }
 
     // back right edge
     if(ltid.x == BSIZE3D-1 && ltid.z == BSIZE3D-1){
-        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z + 1)]  = (p.x == N-1 || p.z == N-1) ? 0 : mat[ GINDEX(p.x+1, p.y, p.z+1, N) ];
+        cache[CINDEX(ltid.x + 1, ltid.y, ltid.z + 1)]  = (p.x >= N-1 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x+1, p.y, p.z+1, N) ];
     }
 }
 
-__device__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 p){
+__device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 p){
     // loading the thread's element
     cache[CINDEX(threadIdx.x, threadIdx.y, threadIdx.z)] = mat[ GINDEX(p.x, p.y, p.z, n) ];
     // loading the cache's halo
