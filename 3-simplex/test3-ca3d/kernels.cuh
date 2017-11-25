@@ -72,11 +72,11 @@ __device__ __inline__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int
     // top left edge
     if((ltid.x == 0 && ltid.y == 0) ){
         // edge
-        cache[CINDEX(ltid.x - 1, ltid.y - 1, ltid.z)]  = (p.x == 0 || p.y == 0)? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z  , N) ];
+        cache[CINDEX(ltid.x - 1, ltid.y - 1, ltid.z)]								= (p.x == 0 || p.y == 0)? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z  , N) ];
         // top front left corner 
-        if(ltid.z == 0){ cache[CINDEX(ltid.x - 1, ltid.y - 1, ltid.z - 1)]  = (p.x == 0 || p.y == 0 || p.z == 0) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z-1  , N) ]; }
+        if(ltid.z == 0){ cache[CINDEX(ltid.x - 1, ltid.y - 1, ltid.z - 1)]			= (p.x == 0 || p.y == 0 || p.z == 0) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z-1  , N) ]; }
         // top back left corner
-        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y - 1, ltid.z + 1)]  = (p.x == 0 || p.y == 0 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z+1  , N) ]; }
+        if(ltid.z == BSIZE3D-1){ cache[CINDEX(ltid.x-1, ltid.y - 1, ltid.z + 1)]	= (p.x == 0 || p.y == 0 || p.z >= N-1) ? 0 : mat[ GINDEX(p.x-1, p.y-1, p.z+1  , N) ]; }
     }
 
     // top right edge
@@ -158,7 +158,8 @@ __device__ __inline__ void set_halo_edges(MTYPE *cache, MTYPE *mat, unsigned int
 
 __device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 p){
     // loading the thread's element
-    cache[CINDEX(threadIdx.x, threadIdx.y, threadIdx.z)] = mat[ GINDEX(p.x, p.y, p.z, n) ];
+	if(p.x >= n-1 || p.y >= n-1 || p.z >= n-1){return;}
+    cache[CINDEX(threadIdx.x, threadIdx.y, threadIdx.z)] = mat[GINDEX(p.x, p.y, p.z, n)];
     // loading the cache's halo
     set_halo_faces(cache, mat, n, threadIdx, p);
     set_halo_edges(cache, mat, n, threadIdx, p);
