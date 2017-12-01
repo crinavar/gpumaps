@@ -3,7 +3,7 @@ BSIZE1D=256
 BSIZE2D=32
 PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -arch sm_35 -rdc=true -lcudadevrt --std=c++11 --expt-extended-lambda
 SOURCE=src/main.cu
-BINARY=test2-edm2d
+BINARY=test3-ca2d
 all:
 	nvcc ${PARAMS} ${SOURCE} -o bin/${BINARY}
 
