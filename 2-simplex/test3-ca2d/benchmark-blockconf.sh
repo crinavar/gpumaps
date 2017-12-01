@@ -31,17 +31,18 @@ do
     do
         echo "DEV=${DEV}  N=${N} B=${B} R=${R}"
         echo -n "${N}   ${B}    " >> data/${OUTFILE}_B${B}.dat
-        RPARAM=$(($N/${LB}))
+        #RPARAM=$(($N/${LB}))
+        RPARAM=$(($N/${B}))
         for q in `seq 1 ${NM}`;
         do
             M=0
             S=0
             # Chosen MAP
-            echo "./${BINARY} ${DEV}    ${N} ${R}    ${q} ${RPARAM}"
+            echo "./${BINARY} ${DEV}    ${N} ${R}    ${q} 0.2 7019 ${RPARAM}"
             echo -n "${METHODS[$q]} ($q) map (${SAMPLES} Samples)............."
             for k in `seq 1 ${SAMPLES}`;
             do
-                x=`./${BINARY} ${DEV} ${N} ${R} ${q} ${RPARAM}`
+                x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019 ${RPARAM}`
                 oldM=$M;
                 M=$(echo "scale=10;  $M+($x-$M)/$k"           | bc)
                 S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | bc)

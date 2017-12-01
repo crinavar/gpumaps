@@ -31,7 +31,8 @@ do
     do
         echo "DEV=${DEV}  N=${N} B=${B} R=${R}"
         echo -n "${N}   ${B}    " >> data/${OUTFILE}_B${B}.dat
-        RPARAM=$(($N/${LB}))
+        #RPARAM=$(($N/${LB}))
+        RPARAM=$(($N/${B}))
         for q in `seq 1 ${NM}`;
         do
             M=0
