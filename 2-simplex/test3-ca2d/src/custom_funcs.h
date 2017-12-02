@@ -15,6 +15,13 @@ int cf_log2i(int val){
     return r;
 }
 
+uint32_t cntsetbits(uint32_t i){
+     // C or C++: use uint32_t
+     i = i - ((i >> 1) & 0x55555555);
+     i = (i & 0x33333333) + ((i >> 2) & 0x33333333);
+     return (((i + (i >> 4)) & 0x0F0F0F0F) * 0x01010101) >> 24;
+}
+
 void print_array(DTYPE *a, const int n){
 	for(int i=0; i<n; i++)
 		printf("a[%d] = %f\n", i, a[i]);

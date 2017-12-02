@@ -32,5 +32,13 @@ void print_results(float *b, int n){
 		printf("b[%d] = %f\n", i, b[i]);
 }
 
+// integer log2
+int cf_log2i(int val){
+    int copy = val;
+    int r = 0;
+    while (copy >>= 1) 
+        ++r;
+    return r;
+}
 
 #endif

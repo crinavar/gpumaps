@@ -1,6 +1,8 @@
 #ifndef GPUBENCHMARKS_CUH
 #define GPUBENCHMARKS_CUH
 
+#define AVRIL_LIMIT 8192
+
 double bbox(const unsigned int n, const unsigned int REPEATS, double DENSITY){
     #ifdef DEBUG
         printf("[Bounding Box]\n");
@@ -34,6 +36,9 @@ double avril(const unsigned int n, const unsigned int REPEATS, double DENSITY){
 #ifdef DEBUG
     printf("[Avril]\n");
 #endif
+    if(n > AVRIL_LIMIT){ 
+	return 0.0f;
+    }
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat1, *dmat2;
 	unsigned int msize, trisize;
@@ -222,8 +227,11 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS, double DE
 
 double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS, double DENSITY){
 #ifdef DEBUG
-    printf("[Recursive]\n");
+    printf("[Recursive] cnb(%i) = %i\n", n, cntsetbits(n));
 #endif
+    if(cntsetbits(n) != 1){
+	return 0.0;
+    }
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat1, *dmat2;
 	unsigned int msize, trisize;
