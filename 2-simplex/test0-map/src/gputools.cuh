@@ -27,7 +27,7 @@ void last_cuda_error(const char *msg){
 
 void fill_random(DTYPE *array, int n){
 	for(int i=0; i<n; i++){
-		array[i] = (DTYPE){100.0f * (float)rand()/(float)RAND_MAX, 100.0f * (float)rand()/(float)RAND_MAX};
+		array[i] = 100.0f * (float)rand()/(float)RAND_MAX;
     }
 } 
 
@@ -229,29 +229,26 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
     for(int i=0; i<n; ++i){
         for(int j=0; j<n; ++j){
             unsigned int index = i*n + j;
-            DTYPE a = hdata[i];
-            DTYPE b = hdata[j];
-            float res = sqrtf( (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y) );
             if(i > j){
-                if( fabs(hmat[index]-res) >= EPSILON ){
+                if( hmat[index] != 1 ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f  (res = %f)\n", i, j, index, hmat[index], res);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;
                 }
             }
             else if(i < j){
-                if( hmat[index] != 0.0f ){
+                if( hmat[index] != 0 ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f\n", i, j, index, hmat[index], res);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;
                 }
             }
             else if(i == j){
-                if(hmat[index] != 0.0f && fabs(hmat[index]-res) >= EPSILON){
+                if(hmat[index] != 0 && hmat[index] != 1){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %f\n", i, j, index, hmat[index], res);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
                     #endif
                     return 0;
                 }

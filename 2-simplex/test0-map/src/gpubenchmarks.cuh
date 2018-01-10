@@ -33,9 +33,6 @@ double avril(const unsigned int n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Avril]\n");
 #endif
-    if(n > 8192){
-        return 0.0f;
-    }
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
 	unsigned int msize, trisize;
@@ -221,9 +218,6 @@ double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS)
 #ifdef DEBUG
     printf("[Recursive]\n");
 #endif
-    if(cntsetbits(n) != 1){
-	    return 0.0;
-    }
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
 	unsigned int msize, trisize;
