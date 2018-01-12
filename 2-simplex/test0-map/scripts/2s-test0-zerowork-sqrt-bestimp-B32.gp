@@ -25,8 +25,8 @@ brown_075 = "#8F743F"
 brown_100 = "#6D4903"
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
-set output 'plots/2s-sqrt-bestimp-rt-B32.eps'
-set title '2-Simplex, {{/Symbol l}} sqrt() Comparison, Zero-Work, {{/Symbol r}=32}'
+set output 'plots/2s-test0-zerowork-sqrt-bestimp-B32.eps'
+set title '2s-zero-work, {{/Symbol l}} sqrt() Performance'
 set ytics mirror
 #unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)

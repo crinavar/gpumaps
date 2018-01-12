@@ -1,8 +1,8 @@
 reset
 set   autoscale                        # scale axes automatically
-set terminal postscript eps color blacktext "Times" 24 enhanced
-set output 'plots/2s-test3-ca2d-speedup-B32.eps'
-set title '2s Game of Life Kernel Speedup, Titan X'
+set term postscript eps color blacktext "Times" 24
+set output 'plots/2s-test3-ca2d-speedup-B32-teslak40.eps'
+set title '2s Game of Life Kernel Speedup, Tesla K40'
 set ytics mirror
 unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)
@@ -31,7 +31,7 @@ set style line 4 dashtype 1 pt 2 lw 1.0 lc rgb "red"
 
 fbb(x)=1
 plot    fbb(x) notitle dashtype 2 lc rgb "black",\
-        'data/2s-test3-ca2d-titanx_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
-        'data/2s-test3-ca2d-titanx_B32.dat' using 1:($3/$23) title "{/Symbol l}" with linespoints ls 1,\
-        'data/2s-test3-ca2d-titanx_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
-        'data/2s-test3-ca2d-titanx_B32.dat' using 1:($3/$7) title "Avril et. al." with linespoints ls 4
+        'data/2s-test3-ca2d-teslak40_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
+        'data/2s-test3-ca2d-teslak40_B32.dat' using 1:($3/$23) title "{/Symbol l}" with linespoints ls 1,\
+        'data/2s-test3-ca2d-teslak40_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
+        'data/2s-test3-ca2d-teslak40_B32.dat' using 1:($3/$7) title "Avril et. al." with linespoints ls 4
