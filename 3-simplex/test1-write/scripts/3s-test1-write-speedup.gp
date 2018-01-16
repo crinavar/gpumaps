@@ -27,10 +27,12 @@ set style line 3 dashtype 3 pt 10 lw 1.0 lc rgb "#222222"
 set style line 4 dashtype 3 pt 81 lw 1.0 lc rgb "#222222"
 
 # gradiente verdes
-set style line 9   dashtype 3 pt 8 lw 3.0 lc rgb "black"
-set style line 10  dashtype 2 pt 4 lw 3.0 lc rgb "black"
-set style line 11  dashtype 6 pt 10 lw 3.0 lc rgb "black"
-set style line 12  dashtype 1 pt 81 lw 3.0 lc rgb "black"
+set style line 7   dashtype 5 pt 2 lw 1.0 lc rgb "#9fdf9f"
+set style line 8   dashtype 4 pt 3 lw 1.0 lc rgb "#79d279"
+set style line 9   dashtype 6 pt 8 lw 1.0 lc rgb "#53c653"
+set style line 10  dashtype 2 pt 4 lw 2.0 lc rgb "#39ac39"
+set style line 11  dashtype 3 pt 10 lw 1.0 lc rgb "#2d862d"
+set style line 12  dashtype 1 pt 81 lw 1.0 lc rgb "#206020"
 
 f1(x)=5.9  - b1*(c1/x)**d1
 f2(x)=5.86 - b2*(c2/x)**d2
@@ -51,9 +53,15 @@ fit f6(x) 'data/3s-test1-write-titanx_B6.dat' u 1:($3/$7) via b6,c6,d6
 fit f7(x) 'data/3s-test1-write-titanx_B7.dat' u 1:($3/$7) via b7,c7,d7
 fit f8(x) 'data/3s-test1-write-titanx_B8.dat' u 1:($3/$7) via b8,c8,d8
 
-set pointsize   0.8
+set pointsize   0.7
+#plot    fbb(x) notitle dashtype 2 lc rgb "black",\
+#        'data/3s-test1-write-titanx_B1.dat' u 1:($3/$7) title "{/Symbol r}=1" with points ls 1, f1(x) notitle ls 9,\
+#        'data/3s-test1-write-titanx_B2.dat' u 1:($3/$7) title "{/Symbol r}=2" with points ls 2, f2(x) notitle ls 10,\
+#        'data/3s-test1-write-titanx_B4.dat' u 1:($3/$7) title "{/Symbol r}=4" with points ls 3, f4(x) notitle ls 11,\
+#        'data/3s-test1-write-titanx_B8.dat' u 1:($3/$7) title "{/Symbol r}=8" with points ls 4, f8(x) notitle ls 12
+
 plot    fbb(x) notitle dashtype 2 lc rgb "black",\
-        'data/3s-test1-write-titanx_B1.dat' u 1:($3/$7) title "{/Symbol r}=1" with points ls 1, f1(x) notitle ls 9,\
-        'data/3s-test1-write-titanx_B2.dat' u 1:($3/$7) title "{/Symbol r}=2" with points ls 2, f2(x) notitle ls 10,\
-        'data/3s-test1-write-titanx_B4.dat' u 1:($3/$7) title "{/Symbol r}=4" with points ls 3, f4(x) notitle ls 11,\
-        'data/3s-test1-write-titanx_B8.dat' u 1:($3/$7) title "{/Symbol r}=8" with points ls 4, f8(x) notitle ls 12
+        'data/3s-test1-write-titanx_B1.dat' u 1:($3/$7) title "{/Symbol r}=1" with linespoints ls 9,\
+        'data/3s-test1-write-titanx_B2.dat' u 1:($3/$7) title "{/Symbol r}=2" with linespoints ls 10,\
+        'data/3s-test1-write-titanx_B4.dat' u 1:($3/$7) title "{/Symbol r}=4" with linespoints ls 11,\
+        'data/3s-test1-write-titanx_B8.dat' u 1:($3/$7) title "{/Symbol r}=8" with linespoints ls 12

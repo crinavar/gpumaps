@@ -1,22 +1,20 @@
 reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
-set output 'plots/3s-test0-map-speedup.eps'
-set title '3-simplex, {/Symbol l}({/Symbol w}) Speedup on Zero-Work Test'
+set output 'plots/3s-test0-map-rt.eps'
+set title '3-simplex, {/Symbol l}({/Symbol w}) running times for Zero-Work Test'
 set ytics nomirror
 unset ytics
 set xtics 256
+set ytics
 set xrange [32:1408]
-set y2tics 1
-set link y2
-set y2label 'S_{{/Symbol l}}' rotate by 0 offset 0
+set log y
+set ylabel 'T[s]' rotate by 0 offset 2
 set xlabel 'N'
 set font "Times, 20"
-#set log x 2
-#set log y
-#set format y2 "10^{%L}"
+set format y "10^{%L}"
 #set format x "2^{%L}"
-set key Right right center reverse samplen 2.0 font "Times,20" spacing 1
+set key Right right bottom reverse samplen 2.0 font "Times,20" spacing 1
 
 
 set style line 1 dashtype 3 pt 8 lw 1.0 lc rgb "#444444"
@@ -43,11 +41,10 @@ fit f2(x) 'data/3s-test0-map-titanx_B2.dat' u 1:($3/$7) via b2,c2,d2
 fit f4(x) 'data/3s-test0-map-titanx_B4.dat' u 1:($3/$7) via b4,c4,d4
 fit f8(x) 'data/3s-test0-map-titanx_B8.dat' u 1:($3/$7) via b8,c8,d8
 
-set pointsize   0.5
-plot    fbb(x) notitle dashtype 2 lc rgb "black",\
-        'data/3s-test0-map-titanx_B1.dat' u 1:($3/$7) title "{/Symbol r}=1" with lines ls 9,\
-        'data/3s-test0-map-titanx_B2.dat' u 1:($3/$7) title "{/Symbol r}=2" with lines ls 10,\
-        'data/3s-test0-map-titanx_B4.dat' u 1:($3/$7) title "{/Symbol r}=4" with lines ls 11,\
-        'data/3s-test0-map-titanx_B8.dat' u 1:($3/$7) title "{/Symbol r}=8" with lines ls 12
+set pointsize   0.7
+plot    'data/3s-test0-map-titanx_B1.dat' u 1:7 title "{/Symbol r}=1" with lines ls 9,\
+        'data/3s-test0-map-titanx_B2.dat' u 1:7 title "{/Symbol r}=2" with lines ls 10,\
+        'data/3s-test0-map-titanx_B4.dat' u 1:7 title "{/Symbol r}=4" with lines ls 11,\
+        'data/3s-test0-map-titanx_B8.dat' u 1:7 title "{/Symbol r}=8" with lines ls 12
 
 

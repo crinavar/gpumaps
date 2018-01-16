@@ -53,10 +53,10 @@ set style line 3 dashtype 6 lw 1.0 pt 9 lc rgb red_050
 
 set style line 7   dashtype 5 pt 2 lw 1.0 lc rgb "#9fdf9f"
 set style line 8   dashtype 4 pt 3 lw 1.0 lc rgb "#79d279"
-set style line 9   dashtype 6      lw 1.0 lc rgb "#53c653"
-set style line 10  dashtype 2      lw 2.0 lc rgb "#39ac39"
-set style line 11  dashtype 3 pt 7 lw 1.0 lc rgb "#2d862d"
-set style line 12  dashtype 1 pt 7 lw 1.0 lc rgb "#206020"
+set style line 9   dashtype 6 pt 8 lw 1.0 lc rgb "#53c653"
+set style line 10  dashtype 2 pt 4 lw 2.0 lc rgb "#39ac39"
+set style line 11  dashtype 3 pt 10 lw 1.0 lc rgb "#2d862d"
+set style line 12  dashtype 1 pt 81 lw 1.0 lc rgb "#206020"
 
 plot    'data/2s-test0-map-titanx_B1.dat' using 1:($3/$23) title "{{/Symbol r}} = 1" with lines ls 7,\
         'data/2s-test0-map-titanx_B2.dat' using 1:($3/$23) title "{{/Symbol r}} = 2" with lines ls 8,\
