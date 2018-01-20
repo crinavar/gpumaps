@@ -2,12 +2,12 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/3s-test0-map-rt.eps'
-set title '3-simplex, {/Symbol l}({/Symbol w}) running times for Zero-Work Test'
+set title '3s-zero-work Kernel Running Times with {/Symbol l}({/Symbol w})'
 set ytics nomirror
 unset ytics
 set xtics 256
 set ytics
-set xrange [32:1408]
+set xrange [0:1408]
 set log y
 set ylabel 'T[s]' rotate by 0 offset 2
 set xlabel 'N'

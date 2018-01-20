@@ -26,7 +26,7 @@ brown_100 = "#6D4903"
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/2s-test1-write-sqrt-bestimp-B32.eps'
-set title '2s-write, {{/Symbol l}} sqrt() Performance'
+set title '2s-write, {{/Symbol l}}({/Symbol w}) Improvement Factor over CUDA sqrt()'
 set ytics mirror
 #unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)
@@ -50,6 +50,6 @@ set style line 2 dashtype 1 lw 1.0 pt 1 lc rgb "black"
 # Inverse
 set style line 3 dashtype 6 lw 1.0 pt 9 lc rgb red_050
 
-plot    'data/2s-test1-write-titanx_B32.dat' using 1:($15/$11) title "Newton sqrt()" with linespoints ls 1,\
-        'data/2s-test1-write-titanx_B32.dat' using 1:($15/$15) title "CUDA sqrt()" with lines ls 2,\
-        'data/2s-test1-write-titanx_B32.dat' using 1:($15/$23) title "Inverse sqrt()" with linespoints ls 3,\
+plot    'data/2s-test1-write-titanx_B32.dat' using 1:($15/$11) title "Newton" with linespoints ls 1,\
+        'data/2s-test1-write-titanx_B32.dat' using 1:($15/$15) title "CUDA" with lines ls 2,\
+        'data/2s-test1-write-titanx_B32.dat' using 1:($15/$23) title "Inverse" with linespoints ls 3,\

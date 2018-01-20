@@ -26,7 +26,7 @@ brown_100 = "#6D4903"
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/2s-test0-zerowork-lambda-rt.eps'
-set title '2s-zero-work, {{/Symbol l}} Mapping Time, CUDA sqrtf()'
+set title '2s-zero-work, {{/Symbol l}}({/Symbol w}) Mapping Time, CUDA sqrtf()'
 set ytics mirror
 #unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)

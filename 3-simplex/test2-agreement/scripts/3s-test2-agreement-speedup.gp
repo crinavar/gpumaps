@@ -2,7 +2,7 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/3s-test2-agreement-speedup.eps'
-set title '3s-agreement Kernel Speedup with {/Symbol l}_{{/Symbol r}=8}'
+set title '3s-agreement Kernel Speedup with {/Symbol l}({/Symbol w})_{{/Symbol r}=8}'
 #set ytics nomirror
 #set ytics 0.1
 unset ytics
@@ -11,7 +11,7 @@ set xrange [0:1408]
 set y2range [0.7:1.5]
 set link y2
 set y2tics 0.1
-set y2label 'S_{{/Symbol l}}' rotate by 0 offset -1
+set y2label 'S_{{/Symbol l}}' rotate by 0 offset -1.5
 set xlabel 'N'
 set font "Times, 20"
 set key Left left reverse samplen 0.2 font "Times,18" spacing 1

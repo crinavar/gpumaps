@@ -2,15 +2,15 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/3s-test0-map-speedup-comp.eps'
-set title '3s-zero-work Kernel Speedup with {{/Symbol l}}'
+set title '3s-zero-work Kernel Speedup with {{/Symbol l}({/Symbol w})_{{/Symbol r}=8}'
 set ytics nomirror
 unset ytics
 set xtics (0, 256, 512, 768, 1024, 1408)
-set xrange [32:1408]
+set xrange [0:1408]
 set yrange [0.5:3.6]
 set y2tics 0.2
 set link y2
-set y2label 'S_{{/Symbol l}}' rotate by 0 offset 0
+set y2label 'S_{{/Symbol l}}' rotate by 0 offset -1.5
 set xlabel 'N'
 set font "Times, 20"
 set key Left left top reverse samplen 1.0 font "Times,20" spacing 1

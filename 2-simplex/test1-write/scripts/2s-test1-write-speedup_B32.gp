@@ -2,7 +2,7 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/2s-test1-write-speedup-B32.eps'
-set title '2s-write Kernel Speedup, Titan X'
+set title '2s-write Kernel Speedup, Titan X, {/Symbol r}=32'
 #set ytics mirror
 unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)
@@ -31,6 +31,6 @@ set style line 4 dashtype 1 pt 2 lw 1.0 lc rgb "red"
 fbb(x)=1
 plot    fbb(x) notitle dashtype 2 lc rgb "black",\
         'data/2s-test1-write-titanx_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
-        'data/2s-test1-write-titanx_B32.dat' using 1:($3/$23) title "{/Symbol l}" with linespoints ls 1,\
+        'data/2s-test1-write-titanx_B32.dat' using 1:($3/$23) title "{/Symbol l}({/Symbol w})" with linespoints ls 1,\
         'data/2s-test1-write-titanx_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
-        'data/2s-test1-write-titanx_B32.dat' using 1:($3/$7) title "Avril et. al." with linespoints ls 4
+        'data/2s-test1-write-titanx_B32.dat' using 1:($3/$7) title "Avril et al." with linespoints ls 4

@@ -2,11 +2,11 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/3s-test0-map-speedup.eps'
-set title '3-simplex, {/Symbol l}({/Symbol w}) Speedup on Zero-Work Test'
+set title '3s-zero-work Kernel Speedup with {/Symbol l}({/Symbol w})'
 set ytics nomirror
 unset ytics
 set xtics 256
-set xrange [32:1408]
+set xrange [0:1408]
 set y2tics 1
 set link y2
 set y2label 'S_{{/Symbol l}}' rotate by 0 offset 0

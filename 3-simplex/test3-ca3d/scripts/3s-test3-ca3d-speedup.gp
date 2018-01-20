@@ -2,7 +2,7 @@ reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
 set output 'plots/3s-test3-ca3d-speedup.eps'
-set title '3s-ca3d Kernel Speedup with {/Symbol l}_{{/Symbol r}=8}'
+set title '3s-ca3d Kernel Speedup with {/Symbol l}({/Symbol w})_{{/Symbol r}=8}'
 #set ytics nomirror
 #set ytics 0.1
 unset ytics
@@ -10,7 +10,7 @@ set xtics (0, 256, 512, 768, 1024, 1408)
 set xrange [0:1408]
 set link y2
 set y2tics 0.05
-set y2label 'S_{{/Symbol l}}' rotate by 0 offset -1
+set y2label 'S_{{/Symbol l}}' rotate by 0 offset -1.5
 set xlabel 'N'
 set font "Times, 20"
 set key Left left reverse samplen 0.2 font "Times,18" spacing 1
