@@ -1,9 +1,9 @@
 reset
 set   autoscale                        # scale axes automatically
 set term postscript eps color blacktext "Times" 24
-set output 'plots/2s-test1-write-speedup-B32-gtx1050ti.eps'
-set title '2s-write Kernel Speedup, GTX 1050 Ti'
-#set ytics mirror
+set output 'plots/2s-test2-edm2d-speedup-B32-teslav100.eps'
+set title '2s-EDM2D Kernel Speedup, Tesla V100'
+set ytics mirror
 unset ytics
 set xtics (1024, 8192, 16384, 24576, 32768)
 set y2tics 0.1
@@ -28,9 +28,10 @@ set style line 2 dashtype 1 pt 9 lw 1.0 lc rgb "magenta"
 set style line 3 dashtype 1 pt 5 lw 1.0 lc rgb "#1E90FF"
 set style line 4 dashtype 1 pt 2 lw 1.0 lc rgb "red"
 
+
 fbb(x)=1
 plot    fbb(x) notitle dashtype 2 lc rgb "black",\
-        'data/2s-test1-write-gtx1050ti_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
-        'data/2s-test1-write-gtx1050ti_B32.dat' using 1:($3/$23) title "{/Symbol l}" with linespoints ls 1,\
-        'data/2s-test1-write-gtx1050ti_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
-        'data/2s-test1-write-gtx1050ti_B32.dat' using 1:($3/$7) title "Avril et al." with linespoints ls 4
+        'data/2s-test2-edm2d-teslav100_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
+        'data/2s-test2-edm2d-teslav100_B32.dat' using 1:($3/$23) title "{/Symbol l}" with linespoints ls 1,\
+        'data/2s-test2-edm2d-teslav100_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
+        'data/2s-test2-edm2d-teslav100_B32.dat' using 1:($3/$7) title "Avril et. al." with linespoints ls 4
