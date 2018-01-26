@@ -25,4 +25,4 @@ plot    fbb(x) notitle dashtype 2 lc rgb "black",\
         'data/2s-test0-map-teslav100_B32.dat' using 1:($3/$27) title "Rectangle" with linespoints ls 2,\
         'data/2s-test0-map-teslav100_B32.dat' using 1:($3/$23) title "{/Symbol l}({/Symbol w})" with linespoints ls 1,\
         'data/2s-test0-map-teslav100_B32-recursive.dat' using 1:($3/$31) title "Recursive" with linespoints ls 3,\
-        'data/2s-test0-map-teslav100_B32.dat' using 1:($3/$7) title "Avril et al." with linespoints ls 4
+        'data/2s-test0-map-teslav100_B32.dat' using 1:($3/$7) title "UTM" with linespoints ls 4
