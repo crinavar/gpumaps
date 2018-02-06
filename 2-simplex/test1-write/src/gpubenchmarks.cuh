@@ -1,5 +1,30 @@
+//////////////////////////////////////////////////////////////////////////////////
+//  gpumaps                                                                     //
+//  A GPU benchmark of mapping functions                                        //
+//                                                                              //
+//////////////////////////////////////////////////////////////////////////////////
+//                                                                              //
+//  Copyright © 2015 Cristobal A. Navarro, Wei Huang.                           //
+//                                                                              //
+//  This file is part of gpumaps.                                               //
+//  gpumaps is free software: you can redistribute it and/or modify             //
+//  it under the terms of the GNU General Public License as published by        //
+//  the Free Software Foundation, either version 3 of the License, or           //
+//  (at your option) any later version.                                         //
+//                                                                              //
+//  gpumaps is distributed in the hope that it will be useful,                  //
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of              //
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               //
+//  GNU General Public License for more details.                                //
+//                                                                              //
+//  You should have received a copy of the GNU General Public License           //
+//  along with gpumaps.  If not, see <http://www.gnu.org/licenses/>.            //
+//                                                                              //
+//////////////////////////////////////////////////////////////////////////////////
 #ifndef GPUBENCHMARKS_CUH
 #define GPUBENCHMARKS_CUH
+
+#define WORDLEN 31
 
 double bbox(const unsigned int n, const unsigned int REPEATS){
 #ifdef DEBUG
@@ -26,7 +51,8 @@ double bbox(const unsigned int n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time*check;
+    //return time*check;
+    return time;
 }
 
 double avril(const unsigned int n, const unsigned int REPEATS){
@@ -162,15 +188,46 @@ double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time*check;
+    //return time*check;
+    return time;
 }
 
 
-double lambda_flatrec(const unsigned int n, const unsigned int REPEATS){
+double hadouken(const unsigned int n, const unsigned int REPEATS){
 #ifdef DEBUG
-    printf("[Flat Recursive] (TODO)\n");
+    printf("[Hadouken]\n");
 #endif
-    return 0.0;
+    DTYPE *hdata, *ddata;
+    MTYPE *hmat, *dmat;
+	unsigned int msize, trisize;
+    dim3 block, grid;
+	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
+    gen_hadouken_pspace(n, block, grid);
+    // formulate map
+    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+        if(blockIdx.y < 2){
+            return (uint2){(blockIdx.x+blockIdx.y*gridDim.x)*blockDim.x +
+                threadIdx.x, (blockIdx.x + blockIdx.y*gridDim.x)*blockDim.y + threadIdx.y};
+        }
+        else{
+            const int h = WORDLEN - __clz(blockIdx.y-1);
+            const int b = 1 << h;
+            const int q = blockIdx.x >> h;
+            const int off = q*b;
+            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
+            return (uint2){(blockIdx.x + off)*blockDim.x + threadIdx.x, (blockIdx.y - 1 + (off << 1))*blockDim.y + threadIdx.y};
+        }
+    };
+    // benchmark
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    // check result
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+	cudaFree(ddata);
+	cudaFree(dmat);
+	free(hdata); 
+    free(hmat);
+    //return time*check;
+    return time;
 }
 
 double rectangle_map(const unsigned int n, const unsigned int REPEATS){
@@ -210,7 +267,8 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    return time*check;
+    //return time*check;
+    return time;
 }
 
 

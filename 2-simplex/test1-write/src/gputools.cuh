@@ -1,7 +1,31 @@
+//////////////////////////////////////////////////////////////////////////////////
+//  gpumaps                                                                     //
+//  A GPU benchmark of mapping functions                                        //
+//                                                                              //
+//////////////////////////////////////////////////////////////////////////////////
+//                                                                              //
+//  Copyright © 2015 Cristobal A. Navarro, Wei Huang.                           //
+//                                                                              //
+//  This file is part of gpumaps.                                               //
+//  gpumaps is free software: you can redistribute it and/or modify             //
+//  it under the terms of the GNU General Public License as published by        //
+//  the Free Software Foundation, either version 3 of the License, or           //
+//  (at your option) any later version.                                         //
+//                                                                              //
+//  gpumaps is distributed in the hope that it will be useful,                  //
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of              //
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the               //
+//  GNU General Public License for more details.                                //
+//                                                                              //
+//  You should have received a copy of the GNU General Public License           //
+//  along with gpumaps.  If not, see <http://www.gnu.org/licenses/>.            //
+//                                                                              //
+//////////////////////////////////////////////////////////////////////////////////
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
 #define MAXSTREAMS 32
+#define PRINTLIMIT 64
 
 int print_dmat(unsigned int limit, unsigned int n, unsigned int msize, MTYPE *dmat){
     MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
@@ -51,7 +75,7 @@ void init(unsigned int n, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dm
     last_cuda_error("init end:memcpy hdata->ddata");
 #ifdef DEBUG
 	printf("2-simplex: n=%i  msize=%i (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE)*(*msize)/(1024*1024));
-    if(n <= 64){
+    if(n <= PRINTLIMIT){
         print_matrix(*hmat, n, "host matrix");
     }
 #endif
@@ -87,6 +111,14 @@ void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
     else{
         grid = dim3((rect_oddx+block.x-1)/block.x, (n+block.y-1)/block.y, 1);
     }
+}
+
+// powers of two assumed for now
+void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid){
+    int w = n/2;
+    int h = n-1;
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid = dim3((w+block.x-1)/block.x, 2 + (h+block.y-1)/block.y, 1);
 }
 
 void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
@@ -225,6 +257,12 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
 #endif
     cudaMemcpy(hdata, ddata, sizeof(DTYPE)*n, cudaMemcpyDeviceToHost);
     cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+    if(n <= PRINTLIMIT){
+        print_matrix(hmat, n, "host matrix");
+    }
+#endif
     for(int i=0; i<n; ++i){
         for(int j=0; j<n; ++j){
             unsigned int index = i*n + j;
@@ -254,12 +292,6 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
             }
         }
     }
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-    if(n <= 64){
-        print_matrix(hmat, n, "host matrix");
-    }
-#endif
     return 1;
 }
 
