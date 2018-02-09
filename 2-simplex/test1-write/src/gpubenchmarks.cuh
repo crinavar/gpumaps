@@ -24,7 +24,6 @@
 #ifndef GPUBENCHMARKS_CUH
 #define GPUBENCHMARKS_CUH
 
-#define WORDLEN 31
 
 double bbox(const unsigned int n, const unsigned int REPEATS){
 #ifdef DEBUG
@@ -44,7 +43,7 @@ double bbox(const unsigned int n, const unsigned int REPEATS){
         return (uint2){blockIdx.x*blockDim.x + threadIdx.x, blockIdx.y*blockDim.y + threadIdx.y};
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -84,7 +83,7 @@ double avril(const unsigned int n, const unsigned int REPEATS){
         return (uint2){p.x-1, p.y-1};
 	};
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -116,7 +115,7 @@ double lambda_newton(const unsigned int n, const unsigned int REPEATS){
             return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -148,7 +147,7 @@ double lambda_standard(const unsigned int n, const unsigned int REPEATS){
         return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -181,7 +180,7 @@ double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
         return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -201,25 +200,80 @@ double hadouken(const unsigned int n, const unsigned int REPEATS){
     MTYPE *hmat, *dmat;
 	unsigned int msize, trisize;
     dim3 block, grid;
+    unsigned int bx=0, ex=0;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    gen_hadouken_pspace(n, block, grid);
+    gen_hadouken_pspace(n, block, grid, &bx, &ex);
     // formulate map
+
+
+    /*
+    // horizontal map
     auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
-        if(blockIdx.y < 2){
-            return (uint2){(blockIdx.x+blockIdx.y*gridDim.x)*blockDim.x +
-                threadIdx.x, (blockIdx.x + blockIdx.y*gridDim.x)*blockDim.y + threadIdx.y};
+        if(blockIdx.x < 2){
+            return (uint2){ (blockIdx.y + blockIdx.x*gridDim.y)*blockDim.y + threadIdx.x, 
+                            (blockIdx.y + blockIdx.x*gridDim.y)*blockDim.y + threadIdx.y};
         }
         else{
-            const int h = WORDLEN - __clz(blockIdx.y-1);
-            const int b = 1 << h;
-            const int q = blockIdx.x >> h;
-            const int off = q*b;
+            const int wx = blockIdx.x-1;
+            const int wy = blockIdx.y;
+            const int h = WORDLEN - __clz(wx);
+            const int qb = (1 << h)*(wy >> h);
             //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-            return (uint2){(blockIdx.x + off)*blockDim.x + threadIdx.x, (blockIdx.y - 1 + (off << 1))*blockDim.y + threadIdx.y};
+            //return (uint2){(blockIdx.x + off)*blockDim.x + threadIdx.y, (blockIdx.x - 1 + (off << 1))*blockDim.x + threadIdx.x};
+            return (uint2){ (wy + qb)*blockDim.x + threadIdx.x, 
+                            (wx + (qb << 1))*blockDim.y + threadIdx.y};
+            //return (uint2){1,0};
         }
     };
+    */
+    ///*
+    // vertical map
+    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int bx, const unsigned int ex){
+        // run ifs in this order (from left to right), to avoid specifying intervals
+        // top triangular part
+        if(blockIdx.x < bx){
+            const int wx = blockIdx.x;
+            const int wy = blockIdx.y-1;
+            if(blockIdx.y < 2){
+                return (uint2){ (wx + blockIdx.y*bx)*blockDim.x + threadIdx.x, (wx + blockIdx.y*bx)*blockDim.y + threadIdx.y};
+            }
+            //return (uint2){1, 0};
+            const int h = WORDLEN - __clz(wy);
+            const int qb = (1 << h)*(wx >> h);
+            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
+            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (wy + (qb << 1))*blockDim.y + threadIdx.y };
+            //return (uint2){1,0};
+        }
+        //return (uint2){1,0};
+        
+        // orthotope
+        else if(blockIdx.x < ex){
+            //return (uint2){1,0};
+            return (uint2){blockIdx.y*blockDim.y + threadIdx.x, (bx + blockIdx.x)*blockDim.x + threadIdx.y}; //return (uint2){1,0};
+        }
+        // extra simplex
+        else{
+            const int wx = blockIdx.x - ex;
+            const int wy = blockIdx.y-1;
+            const int width = gridDim.x - ex;
+            //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
+            if(blockIdx.y < 2){
+                return (uint2){ (gridDim.y + wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (gridDim.y + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
+                //return (uint2){1,0};
+            }
+            //return (uint2){1, 0};
+            const int h = WORDLEN - __clz(wy);
+            const int qb = (1 << h)*(wx >> h);
+            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
+            return (uint2){ (gridDim.y + wx + qb)*blockDim.x + threadIdx.x, (gridDim.y + wy + (qb << 1))*blockDim.y + threadIdx.y };
+            //return (uint2){1,0};
+        }
+        
+    };
+    //*/
+    
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, bx, ex);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);
@@ -260,7 +314,7 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS){
         return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
 	cudaFree(ddata);

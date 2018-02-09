@@ -32,14 +32,15 @@
 __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n){
     mat[p.y*n + p.x] = 1;
     
-    //const int b = (int)log2f(blockIdx.y-2);
-    //if(blockIdx.y < 2){
-    //    mat[p.y*n + p.x] = 9;
-    //}
-    //else{
-    //    mat[p.y*n + p.x] = b;
-    //}
-    
+    /*
+    const int b = (int)log2f(blockIdx.y-1);
+    if(blockIdx.y < 2){
+        mat[p.y*n + p.x] = 9;
+    }
+    else{
+        mat[p.y*n + p.x] = b;
+    }
+    */
 }
 
 // metodo kernel test

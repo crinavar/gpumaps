@@ -57,7 +57,7 @@ int main(int argc, char **argv){
         case 4:
             time = lambda_standard(n, REPEATS);
             break;
-        case 5:
+        case 99:
             time = hadouken(n, REPEATS);
             break;
         case 6:

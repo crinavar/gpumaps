@@ -47,7 +47,12 @@ void print_matrix(MTYPE *mat, const int n, const char *msg){
 	for(int i=0; i<n; i++){
 	    for(int j=0; j<n; j++){
             if(j>i){
-                printf("  ");
+                if( mat[i*n + j] == 0 ){
+                    printf("  ");
+                }
+                else{
+                    printf("%i ", mat[i*n + j]);
+                }
             }
             else{
                 printf("%i ", mat[i*n + j]);

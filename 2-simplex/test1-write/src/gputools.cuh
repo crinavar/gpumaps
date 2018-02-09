@@ -24,8 +24,9 @@
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
+#define WORDLEN 31
 #define MAXSTREAMS 32
-#define PRINTLIMIT 64
+#define PRINTLIMIT 256
 
 int print_dmat(unsigned int limit, unsigned int n, unsigned int msize, MTYPE *dmat){
     MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
@@ -114,11 +115,54 @@ void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 }
 
 // powers of two assumed for now
-void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid){
+void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *bx, unsigned int *ex){
+    /*
+    // horizontal 
+    int w = n-1;
+    int h = n/2;
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid = dim3((w+block.x-1)/block.x + 2, (h+block.y-1)/block.y, 1);
+    */
+
+    // vertical
+    /*
+    const unsigned int nl = 1 << (WORDLEN - __builtin_clz(n)); 
+    const unsigned int ortho = n - nl;
+    printf("2^(floor(log2(%i))) = nl = %i\n", n, nl);
     int w = n/2;
     int h = n-1;
     block = dim3(BSIZE2D, BSIZE2D, 1);
     grid = dim3((w+block.x-1)/block.x, 2 + (h+block.y-1)/block.y, 1);
+    */
+    
+    // vertical any 'n'
+    const unsigned int nb = (n + BSIZE2D - 1)/BSIZE2D;
+
+    const unsigned int l = WORDLEN - __builtin_clz(n);
+    const unsigned int powl = 1 << l;
+    const unsigned int nbl = (powl + BSIZE2D - 1)/BSIZE2D; 
+    const unsigned int obx = nb - nbl;
+    unsigned int aux_exu=0;
+    unsigned int lobx = 0;
+    if(obx <= 1){
+        aux_exu=0;
+    }
+    else{
+        lobx = WORDLEN - __builtin_clz(obx-1);
+        aux_exu = ((obx-1) - (1 << lobx) == 0) ?  (obx-1) : (1 << (lobx+1));
+        printf("1 << lobx = %i\n", 1 << lobx);
+    }
+    const unsigned int exu = ceil((double)aux_exu/2.0);
+    const unsigned int nblhalf = nbl/2;
+    printf("aux_exu = %i, aux_exu/2.0f = %f  ceil(aux_exu/2.0f) = %f  exu = %i\n", aux_exu, aux_exu/2.0f, ceil(aux_exu/2.0f), exu);
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid = dim3(nblhalf + obx + exu, nbl+1, 1);
+#ifdef DEBUG
+	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+#endif
+    *bx = nblhalf;
+    *ex = nblhalf + obx;
+    printf("n=%u  l=%u  nb=%u  nbl=%u  nblhalf = %u obx=%u  lobx=%u  exu=%u bx=%u  ex=%u \n", n, l, nb, nbl, nblhalf, obx, lobx, exu, *bx, *ex);
 }
 
 void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
@@ -128,7 +172,9 @@ void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 }
 
 template<typename Lambda>
-double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map){
+double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
+        unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat,
+        Lambda map, const unsigned int aux1, const unsigned int aux2){
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -141,7 +187,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     printf("warmup.........................."); fflush(stdout);
 #endif
 	for(int i=0; i<REPEATS; i++){
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, 0, 0);	
+        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
         cudaThreadSynchronize();
     }
     last_cuda_error("warmup");
@@ -153,7 +199,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, 0, 0);	
+        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
         cudaThreadSynchronize();
     }
 #ifdef DEBUG
