@@ -231,58 +231,62 @@ double hadouken(const unsigned int n, const unsigned int REPEATS){
     auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int bx, const unsigned int ex){
         // run ifs in this order (from left to right), to avoid specifying intervals
         // orthotope
-        if(blockIdx.x < bx){
-            //return (uint2){blockIdx.y*blockDim.y + threadIdx.x, (bx + blockIdx.x)*blockDim.x + threadIdx.y}; //return (uint2){1,0};
-            //return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
-            return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx - 1 + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
-            //return (uint2){1,0};
-        }
+        //if(blockIdx.x < bx){
+        //    //return (uint2){blockIdx.y*blockDim.y + threadIdx.x, (bx + blockIdx.x)*blockDim.x + threadIdx.y}; //return (uint2){1,0};
+        //    //return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
+        //    return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx - 1 + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
+        //    //return (uint2){1,0};
+        //}
         // bot simplex
-        if(blockIdx.x < ex){
+        //if(blockIdx.x < ex){
             // top triangular part
-            const unsigned int wy = blockIdx.y-1;
-            const unsigned int wx = blockIdx.x - bx;
-            const unsigned int width = ex-bx;
+            const unsigned int wy = blockIdx.y;
+            //const unsigned int wx = blockIdx.x - bx;
+            const unsigned int wx = blockIdx.x;
+            //const unsigned int width = ex-bx;
 
             //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
-            if(blockIdx.y < 2){
-                return (uint2){ (bx + wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (bx + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
+            //if(blockIdx.x == gridDim.x-1){
+                //return (uint2){ (bx + wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (bx + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
+                //return (uint2){ (wx + blockIdx.y*gridDim.x)*blockDim.x + threadIdx.x, (wx + blockIdx.y*gridDim.x)*blockDim.y + threadIdx.y};
+            //    return (uint2){ blockIdx.y*blockDim.y + threadIdx.x, blockIdx.y*blockDim.y + threadIdx.y};
                 //return (uint2){1,0};
-            }
+            //}
             //return (uint2){1, 0};
-            const int h = WORDLEN - __clz(wy);
-            const int qb = (1 << h)*(wx >> h);
+            const unsigned int h = WORDLEN - __clz(wy+1);
+            const unsigned int qb = (1 << h)*(wx >> h);
             //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-            return (uint2){ (bx + wx + qb)*blockDim.x + threadIdx.x, (bx + wy + (qb << 1))*blockDim.y + threadIdx.y };
+            //return (uint2){ (bx + wx + qb)*blockDim.x + threadIdx.x, (bx + wy + (qb << 1))*blockDim.y + threadIdx.y };
+            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (wy + (qb << 1))*blockDim.y + threadIdx.y };
             //return (uint2){1,0};
 
-        }
-        else{
-            // top simplex
-            const unsigned int wy = blockIdx.y-1;
-            const unsigned int wx = blockIdx.x - ex;
-            const unsigned int width = gridDim.x - ex;
-            const unsigned int e2 = width << 1;
-            const unsigned int ey = (bx - 1) - e2;
+        //}
+        //else{
+        //    // top simplex
+        //    const unsigned int wy = blockIdx.y-1;
+        //    const unsigned int wx = blockIdx.x - ex;
+        //    const unsigned int width = gridDim.x - ex;
+        //    const unsigned int e2 = width << 1;
+        //    const unsigned int ey = (bx - 1) - e2;
 
-            if(blockIdx.y > e2){
-                //printf("ey = %i   bx = %i   width = %i   filtering block (x,y) = (%i, %i)\n", ey, bx, width, wx, blockIdx.y);
-                return (uint2){1,0};
-            }
+        //    if(blockIdx.y > e2){
+        //        //printf("ey = %i   bx = %i   width = %i   filtering block (x,y) = (%i, %i)\n", ey, bx, width, wx, blockIdx.y);
+        //        return (uint2){1,0};
+        //    }
 
-            //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
-            if(blockIdx.y < 2){
-                return (uint2){ (wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (ey + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
-                //return (uint2){1,0};
-            }
+        //    //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
+        //    if(blockIdx.y < 2){
+        //        return (uint2){ (wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (ey + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
+        //        //return (uint2){1,0};
+        //    }
 
-            //return (uint2){1, 0};
-            const int h = WORDLEN - __clz(wy);
-            const int qb = (1 << h)*(wx >> h);
-            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (ey + wy + (qb << 1))*blockDim.y + threadIdx.y };
-            //return (uint2){1,0};
-        }
+        //    //return (uint2){1, 0};
+        //    const int h = WORDLEN - __clz(wy);
+        //    const int qb = (1 << h)*(wx >> h);
+        //    //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
+        //    return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (ey + wy + (qb << 1))*blockDim.y + threadIdx.y };
+        //    //return (uint2){1,0};
+        //}
     };
     //*/
     
