@@ -156,12 +156,15 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     const unsigned int nblhalf = nbl/2;
     printf("aux_exu = %i, aux_exu/2.0f = %f  ceil(aux_exu/2.0f) = %f  exu = %i\n", aux_exu, aux_exu/2.0f, ceil(aux_exu/2.0f), exu);
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    grid = dim3(nblhalf + obx + exu, nbl+1, 1);
+    //grid = dim3(nblhalf + obx + exu, nbl+1, 1);
+    grid = dim3(obx + nblhalf + exu, nbl+1, 1);
 #ifdef DEBUG
 	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
-    *bx = nblhalf;
-    *ex = nblhalf + obx;
+    //*bx = nblhalf;
+    //*ex = nblhalf + obx;
+    *bx = obx;
+    *ex = obx + nblhalf;
     printf("n=%u  l=%u  nb=%u  nbl=%u  nblhalf = %u obx=%u  lobx=%u  exu=%u bx=%u  ex=%u \n", n, l, nb, nbl, nblhalf, obx, lobx, exu, *bx, *ex);
 }
 

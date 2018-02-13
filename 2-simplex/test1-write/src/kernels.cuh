@@ -53,6 +53,7 @@ __global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYP
     }
     */
     if(p.y >= p.x && p.y < n){
+    //if(p.y < n){
         work(data, dmat, p, n);
     }
 }
