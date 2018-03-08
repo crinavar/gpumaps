@@ -31,6 +31,8 @@
 #define PRINTLIMIT 256
 //#define EXTRASPACE
 
+template<typename Lambda>
+__global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, unsigned int aux1, unsigned int aux2);
 // integer log2
 __host__ __device__ int cf_log2i(const int val){
     int copy = val;
