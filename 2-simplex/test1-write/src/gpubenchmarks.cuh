@@ -25,18 +25,18 @@
 #define GPUBENCHMARKS_CUH
 
 
-double bbox(const unsigned int n, const unsigned int REPEATS){
+double bbox(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Bounding Box]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_bbox_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
         if(blockIdx.x > blockIdx.y){
             return (uint2){1,0};
         }
@@ -45,7 +45,7 @@ double bbox(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -54,18 +54,18 @@ double bbox(const unsigned int n, const unsigned int REPEATS){
     return time;
 }
 
-double avril(const unsigned int n, const unsigned int REPEATS){
+double avril(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Avril]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_avril_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
         int k = (blockIdx.y*gridDim.x + blockIdx.x)*blockDim.x + threadIdx.x;
         //int a = __fadd_rn((float)N, __fadd_rn(0.5f, - (carmack_sqrtf(__fmaf_rn((float)N, (float)N, -(float)N) + __fmaf_rn(2.0f, (float)k, 0.25f)))));
         uint2 p;
@@ -85,7 +85,7 @@ double avril(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -93,18 +93,18 @@ double avril(const unsigned int n, const unsigned int REPEATS){
     return time*check;
 }
 
-double lambda_newton(const unsigned int n, const unsigned int REPEATS){
+double lambda_newton(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Lambda (Newton)]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_lambda_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
             uint2 p;
             unsigned int bc = blockIdx.x + blockIdx.y*gridDim.x;
             p.y = __fadd_rn(newton_sqrtf(__fmaf_rn(2.0f, (float)bc, 0.25f)), OFFSET);
@@ -117,7 +117,7 @@ double lambda_newton(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -125,18 +125,18 @@ double lambda_newton(const unsigned int n, const unsigned int REPEATS){
     return time*check;
 }
 
-double lambda_standard(const unsigned int n, const unsigned int REPEATS){
+double lambda_standard(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Lambda (standard)]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_lambda_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
         uint2 p;
         unsigned int bc = blockIdx.x + blockIdx.y*gridDim.x;
         //p.y = sqrtf(0.25 + 2.0f*(float)bc) - 0.5f;
@@ -149,7 +149,7 @@ double lambda_standard(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -157,18 +157,18 @@ double lambda_standard(const unsigned int n, const unsigned int REPEATS){
     return time*check;
 }
 
-double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
+double lambda_inverse(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Lambda (inverse)]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_lambda_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
         uint2 p;
         unsigned int bc = blockIdx.x + blockIdx.y*gridDim.x;
         float arg = __fmaf_rn(2.0f, (float)bc, 0.25f);
@@ -182,7 +182,7 @@ double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -192,108 +192,66 @@ double lambda_inverse(const unsigned int n, const unsigned int REPEATS){
 }
 
 
-double hadouken(const unsigned int n, const unsigned int REPEATS){
+double hadouken(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Hadouken]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
-    unsigned int bx=0, ex=0;
+    unsigned int bmark=0, emark=0;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    gen_hadouken_pspace(n, block, grid, &bx, &ex);
-    // formulate map
-
-
-    /*
-    // horizontal map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
-        if(blockIdx.x < 2){
-            return (uint2){ (blockIdx.y + blockIdx.x*gridDim.y)*blockDim.y + threadIdx.x, 
-                            (blockIdx.y + blockIdx.x*gridDim.y)*blockDim.y + threadIdx.y};
-        }
-        else{
-            const int wx = blockIdx.x-1;
-            const int wy = blockIdx.y;
-            const int h = WORDLEN - __clz(wx);
-            const int qb = (1 << h)*(wy >> h);
-            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-            //return (uint2){(blockIdx.x + off)*blockDim.x + threadIdx.y, (blockIdx.x - 1 + (off << 1))*blockDim.x + threadIdx.x};
-            return (uint2){ (wy + qb)*blockDim.x + threadIdx.x, 
-                            (wx + (qb << 1))*blockDim.y + threadIdx.y};
-            //return (uint2){1,0};
-        }
-    };
-    */
+    gen_hadouken_pspace_tall(n, block, grid, &bmark, &emark);
+    //gen_hadouken_pspace(n, block, grid, &bx, &ex);
+    printf("gen_hadouken_pspace(%i, ...)\n", n);
     ///*
     // vertical map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int bx, const unsigned int ex){
-        // run ifs in this order (from left to right), to avoid specifying intervals
-        // orthotope
-        //if(blockIdx.x < bx){
-        //    //return (uint2){blockIdx.y*blockDim.y + threadIdx.x, (bx + blockIdx.x)*blockDim.x + threadIdx.y}; //return (uint2){1,0};
-        //    //return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
-        //    return (uint2){blockIdx.x*blockDim.x + threadIdx.x, (bx - 1 + blockIdx.y)*blockDim.y + threadIdx.y}; //return (uint2){1,0};
-        //    //return (uint2){1,0};
-        //}
-        // bot simplex
-        //if(blockIdx.x < ex){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int bmark, const unsigned int emark){
+        if(blockIdx.y < bmark-1){
             // top triangular part
             const unsigned int wy = blockIdx.y;
-            //const unsigned int wx = blockIdx.x - bx;
             const unsigned int wx = blockIdx.x;
-            //const unsigned int width = ex-bx;
-
-            //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
-            //if(blockIdx.x == gridDim.x-1){
-                //return (uint2){ (bx + wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (bx + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
-                //return (uint2){ (wx + blockIdx.y*gridDim.x)*blockDim.x + threadIdx.x, (wx + blockIdx.y*gridDim.x)*blockDim.y + threadIdx.y};
-            //    return (uint2){ blockIdx.y*blockDim.y + threadIdx.x, blockIdx.y*blockDim.y + threadIdx.y};
-                //return (uint2){1,0};
-            //}
-            //return (uint2){1, 0};
             const unsigned int h = WORDLEN - __clz(wy+1);
             const unsigned int qb = (1 << h)*(wx >> h);
-            //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-            //return (uint2){ (bx + wx + qb)*blockDim.x + threadIdx.x, (bx + wy + (qb << 1))*blockDim.y + threadIdx.y };
-            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (wy + (qb << 1))*blockDim.y + threadIdx.y };
             //return (uint2){1,0};
-
-        //}
-        //else{
-        //    // top simplex
-        //    const unsigned int wy = blockIdx.y-1;
-        //    const unsigned int wx = blockIdx.x - ex;
-        //    const unsigned int width = gridDim.x - ex;
-        //    const unsigned int e2 = width << 1;
-        //    const unsigned int ey = (bx - 1) - e2;
-
-        //    if(blockIdx.y > e2){
-        //        //printf("ey = %i   bx = %i   width = %i   filtering block (x,y) = (%i, %i)\n", ey, bx, width, wx, blockIdx.y);
-        //        return (uint2){1,0};
-        //    }
-
-        //    //printf("wx = %i    width = %i     gridDim.x = %i    ex = %i\n", wx, width, gridDim.x, ex);
-        //    if(blockIdx.y < 2){
-        //        return (uint2){ (wx + blockIdx.y*width)*blockDim.x + threadIdx.x, (ey + wx + blockIdx.y*width)*blockDim.y + threadIdx.y};
-        //        //return (uint2){1,0};
-        //    }
-
-        //    //return (uint2){1, 0};
-        //    const int h = WORDLEN - __clz(wy);
-        //    const int qb = (1 << h)*(wx >> h);
-        //    //printf("block (x,y)->(%i, %i)  maps to  (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
-        //    return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (ey + wy + (qb << 1))*blockDim.y + threadIdx.y };
-        //    //return (uint2){1,0};
-        //}
+            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (wy + (qb << 1))*blockDim.y + threadIdx.y };
+        }
+        else if(blockIdx.y < emark){
+            // middle block
+            const unsigned int bx = blockIdx.x;
+            const unsigned int by = blockIdx.y - bmark + 1;
+            const unsigned int offy = (emark - bmark+1 ) >> 1;
+            //return (uint2){1,0};
+            if(by < offy){
+                return (uint2){ bx*blockDim.x + threadIdx.x, (by+bmark-1)*blockDim.y + threadIdx.y };
+            }
+            else{
+                return (uint2){ (bx + gridDim.x)*blockDim.x + threadIdx.x, (by+bmark-1-offy)*blockDim.y + threadIdx.y };
+            }
+        }
+        else{
+            // bottom triangular part
+            const unsigned int wy = blockIdx.y - emark;
+            const unsigned int wx = blockIdx.x;
+            const unsigned int h = WORDLEN - __clz(wy+1);
+            const unsigned int qb = (1 << h)*(wx >> h);
+            //return (uint2){1,0};
+            return (uint2){ (wx + qb + (gridDim.x<<1))*blockDim.x + threadIdx.x, (wy + ((gridDim.x + qb) << 1))*blockDim.y + threadIdx.y };
+        }
     };
     //*/
     
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, bx, ex);
+#ifdef EXTRASPACE
+    // mostrar doble
+    double time = benchmark_map(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, bmark, emark);
+#else
+    // mostrar justo
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, bmark, emark);
+#endif
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -302,18 +260,18 @@ double hadouken(const unsigned int n, const unsigned int REPEATS){
     return time;
 }
 
-double rectangle_map(const unsigned int n, const unsigned int REPEATS){
+double rectangle_map(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Rectangle]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_rectangle_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2){
         uint2 p;
         p.y = blockIdx.y * blockDim.y + threadIdx.y;
         p.x = blockIdx.x * blockDim.x + threadIdx.x;
@@ -334,7 +292,7 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
@@ -344,13 +302,13 @@ double rectangle_map(const unsigned int n, const unsigned int REPEATS){
 }
 
 
-double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS){
+double recursive_map(const unsigned long n, int recn, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Recursive]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
-	unsigned int msize, trisize;
+	unsigned long msize, trisize;
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_recursive_pspace(n, block, grid);
@@ -365,7 +323,7 @@ double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS)
     printf("[recursive params] --> n=%i recn = %i = 2^k  m=%i  k=%i\n", n, recn, m, k);
 #endif
     // formulate map
-    auto maprec = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int bx, const unsigned int by){
+    auto maprec = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int bx, const unsigned int by){
         uint2 p;
         // calcula el indice del bloque recursivo, es division entera.
         int rec_index = blockIdx.x/gridDim.y;
@@ -375,7 +333,7 @@ double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS)
         p.y = (by+(gridDim.y*rec_index*2) + blockIdx.y)*blockDim.y + threadIdx.y;
         return p;
     };
-    auto mapdiag = [] __device__ (const unsigned int n, const unsigned int msize, unsigned int aux1, unsigned int aux2){
+    auto mapdiag = [] __device__ (const unsigned long n, const unsigned long msize, unsigned int aux1, unsigned int aux2){
         // calcula el indice del bloque recursivo, es division entera.
         uint2 p;
         int rec_index = blockIdx.x/gridDim.y;
@@ -389,7 +347,7 @@ double recursive_map(const unsigned int n, int recn, const unsigned int REPEATS)
     // benchmark
     double time = benchmark_map_recursive(REPEATS, block, grid, n, msize, trisize, ddata, dmat, maprec, mapdiag, m, k);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat);
+    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 

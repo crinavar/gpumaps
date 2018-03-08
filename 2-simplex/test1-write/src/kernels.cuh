@@ -30,17 +30,9 @@
 //#define OFFSET 0.5f
 
 __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n){
-    mat[p.y*n + p.x] = 1;
-    
-    /*
-    const int b = (int)log2f(blockIdx.y-1);
-    if(blockIdx.y < 2){
-        mat[p.y*n + p.x] = 9;
-    }
-    else{
-        mat[p.y*n + p.x] = b;
-    }
-    */
+    //mat[p.y*n + p.x] = 1;
+    const int b = (int)log2f(blockIdx.y+1) + 1;
+    mat[p.y*n + p.x] = b;
 }
 
 // metodo kernel test
@@ -56,6 +48,9 @@ __global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYP
     //if(p.y < n){
         work(data, dmat, p, n);
     }
+    //else if(p.y < n/2){
+    //    printf("\n[OUT] block (x,y)=(%i, %i) -> (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
+    //}
 }
 
 __device__ float carmack_sqrtf(float nb) {

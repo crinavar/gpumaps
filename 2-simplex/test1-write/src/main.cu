@@ -25,9 +25,8 @@
 #include <cuda.h>
 #include <time.h>
 #include <sys/time.h>
-#include "custom_funcs.h"
-#include "kernels.cuh"
 #include "gputools.cuh"
+#include "kernels.cuh"
 #include "gpubenchmarks.cuh"
 
 // main routine that executes on the host

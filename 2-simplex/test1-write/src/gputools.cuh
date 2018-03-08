@@ -24,9 +24,115 @@
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
+#define DTYPE float
+#define MTYPE char
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
+//#define EXTRASPACE
+
+// integer log2
+__host__ __device__ int cf_log2i(const int val){
+    int copy = val;
+    int r = 0;
+    while (copy >>= 1) 
+        ++r;
+    return r;
+}
+
+void print_array(DTYPE *a, const int n){
+	for(int i=0; i<n; i++)
+		printf("a[%d] = %f\n", i, a[i]);
+}
+
+void print_matrix(MTYPE *mat, const int no, const char *msg){
+#ifdef EXTRASPACE
+    // mostrar doble
+    int n = 2*no;
+#else
+    // mostrar justo
+    int n = no;
+#endif
+    // writing result to frame
+	for(int i=0; i<n; i++){
+	    for(int j=0; j<n; j++){
+            if(mat[i*n+j] == 0){
+                printf("* ");
+            }
+            else{
+                printf("%i ", mat[i*n + j]);
+            }
+        }
+        printf("\n");
+    }
+}
+
+void print_map(MTYPE *mat, const int no, const char *msg, dim3 grid, dim3 block){
+#ifdef EXTRASPACE
+    // mostrar doble
+    int n = 2*no;
+#else
+    // mostrar justo
+    int n = no;
+#endif
+    int w = grid.x*block.x;
+    int h = grid.y*block.y;
+    const int gap = 3;
+    const int framex = n + w + gap;
+    const int framey = h + 5;
+
+    int b=0;
+    char frame[framey][framex];
+	for(int i=0; i<framey; i++){
+	    for(int j=0; j<framex; j++){
+            frame[i][j] = ' ';
+        }
+    }
+
+    // writing pspace to frame
+	for(int i=0; i<h; i++){
+	    for(int j=0; j<w; j++){
+            b = 48 + (int)log2f(i/BSIZE2D + 1) + 1;
+            frame[i+2][j] = b;
+        }
+    }
+
+    // writing result to frame
+	for(int i=0; i<n; i++){
+	    for(int j=0; j<n; j++){
+            if(mat[i*n+j] == 0){
+                    frame[i+2][j+w+gap] = 42;
+                    continue;
+            }
+            if(j>i){
+                //if( mat[i*n + j] == 0 ){
+                //    printf("  ");
+                //}
+                //else{
+                    //printf("%i ", mat[i*n + j]);
+                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
+                //}
+            }
+            else{
+                if( mat[i*n + j] == 0 ){
+                    //printf("%i ", mat[i*n + j]);
+                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
+                }
+                else{
+                    //printf("%i ", mat[i*n + j]);
+                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
+                }
+            }
+        }
+    }
+	for(int i=0; i<framey; i++){
+	    for(int j=0; j<framex; j++){
+            printf("%c ", frame[i][j]);
+        }
+        printf("\n");
+    }
+    printf("[%s]:\n", msg); fflush(stdout);
+}
 
 int print_dmat(unsigned int limit, unsigned int n, unsigned int msize, MTYPE *dmat){
     MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
@@ -56,7 +162,14 @@ void fill_random(DTYPE *array, int n){
     }
 } 
 
-void init(unsigned int n, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dmat, unsigned int *msize, unsigned int *trisize){
+void init(unsigned long no, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dmat, unsigned long *msize, unsigned long *trisize){
+#ifdef EXTRASPACE
+    // mostrar doble
+    unsigned long n = 2*no;
+#else
+    // mostrar justo
+    unsigned long n = no;
+#endif
 	*msize = n*n;
     *trisize = n*(n-1)/2;
 	
@@ -75,9 +188,9 @@ void init(unsigned int n, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dm
 	cudaMemcpy(*ddata, *hdata, sizeof(DTYPE)*n, cudaMemcpyHostToDevice);
     last_cuda_error("init end:memcpy hdata->ddata");
 #ifdef DEBUG
-	printf("2-simplex: n=%i  msize=%i (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE)*(*msize)/(1024*1024));
+	printf("2-simplex: n=%i  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE)*(*msize)/(1024*1024));
     if(n <= PRINTLIMIT){
-        print_matrix(*hmat, n, "host matrix");
+        print_matrix(*hmat, no, "host matrix");
     }
 #endif
 }
@@ -125,11 +238,18 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     */
 
     // vertical
-    
+    //int n = no/2; 
+    //int n = 1 << (WORDLEN - __builtin_clz(no)); 
+
     int w = (int)ceil(n/2.0);
     int h = n-1;
+    int extra = 0;
+    int nu = 1 << ((int)ceil(log2f(n)));
+    printf("nu = %i\n", nu);
+    //extra = ceil((float)(nu - n)/2.0);
+    printf("extra = %i\n", extra);
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    grid = dim3((w+block.x-1)/block.x, (h+block.y-1)/block.y, 1);
+    grid = dim3((extra + w + block.x-1)/block.x, (h+block.y-1)/block.y, 1);
     
     
     //// vertical any 'n'
@@ -163,6 +283,23 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     //*bx = obx;
     //*ex = obx + nblhalf;
     //printf("n=%u  l=%u  nb=%u  nbl=%u  nblhalf = %u obx=%u  lobx=%u  exu=%u bx=%u  ex=%u \n", n, l, nb, nbl, nblhalf, obx, lobx, exu, *bx, *ex);
+}// powers of two assumed for now
+
+void gen_hadouken_pspace_tall(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *bmark, unsigned int *emark){
+    int nl = 1 << (int)floor(log2f(n));
+    int w = (int)ceil(nl/2.0);
+    int extrah = n - nl + 1;
+    int h = nl - 1 + 3*extrah;
+    int fakeh = nl - 1 + 2*extrah;
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid  = dim3((w + block.x-1)/block.x, (h + block.y-1)/block.y, 1);
+    dim3 fakegrid  = dim3((w + block.x-1)/block.x, (fakeh + block.y-1)/block.y, 1);
+    int hoffset = fakegrid.y - grid.x*2;
+    *bmark = grid.x*2;
+    *emark = *bmark + hoffset;  
+#ifdef DEBUG
+	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+#endif
 }
 
 void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
@@ -183,7 +320,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     printf("warmup.........................."); fflush(stdout);
 #endif
 	for(int i=0; i<REPEATS; i++){
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
+        //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
         cudaThreadSynchronize();
     }
     last_cuda_error("warmup");
@@ -293,7 +430,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
     last_cuda_error("benchmark-check");
     return time;
 }
-int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat){
+int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
 #ifdef DEBUG
     printf("verifying result................"); fflush(stdout);
 #endif
@@ -302,7 +439,7 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
     if(n <= PRINTLIMIT){
-        print_matrix(hmat, n, "host matrix");
+        print_map(hmat, n, "host matrix", grid, block);
     }
 #endif
     for(int i=0; i<n; ++i){
