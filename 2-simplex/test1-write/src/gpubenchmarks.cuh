@@ -201,44 +201,51 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
 	unsigned long msize, trisize;
     dim3 block, grid;
     unsigned int bmark=0, emark=0;
+    unsigned int bx=0, ex=0;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    gen_hadouken_pspace_tall(n, block, grid, &bmark, &emark);
-    //gen_hadouken_pspace(n, block, grid, &bx, &ex);
+    //gen_hadouken_pspace_tall(n, block, grid, &bmark, &emark);
+    gen_hadouken_pspace(n, block, grid, &bx, &ex);
     printf("gen_hadouken_pspace(%i, ...)\n", n);
     ///*
     // vertical map
-    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int bmark, const unsigned int emark){
-        if(blockIdx.y < bmark-1){
-            // top triangular part
-            const unsigned int wy = blockIdx.y;
-            const unsigned int wx = blockIdx.x;
-            const unsigned int h = WORDLEN - __clz(wy+1);
-            const unsigned int qb = (1 << h)*(wx >> h);
-            //return (uint2){1,0};
-            return (uint2){ (wx + qb)*blockDim.x + threadIdx.x, (wy + (qb << 1))*blockDim.y + threadIdx.y };
-        }
-        else if(blockIdx.y < emark){
-            // middle block
-            const unsigned int bx = blockIdx.x;
-            const unsigned int by = blockIdx.y - bmark + 1;
-            const unsigned int offy = (emark - bmark+1 ) >> 1;
-            //return (uint2){1,0};
-            if(by < offy){
-                return (uint2){ bx*blockDim.x + threadIdx.x, (by+bmark-1)*blockDim.y + threadIdx.y };
-            }
-            else{
-                return (uint2){ (bx + gridDim.x)*blockDim.x + threadIdx.x, (by+bmark-1-offy)*blockDim.y + threadIdx.y };
-            }
-        }
-        else{
-            // bottom triangular part
-            const unsigned int wy = blockIdx.y - emark;
-            const unsigned int wx = blockIdx.x;
-            const unsigned int h = WORDLEN - __clz(wy+1);
-            const unsigned int qb = (1 << h)*(wx >> h);
-            //return (uint2){1,0};
-            return (uint2){ (wx + qb + (gridDim.x<<1))*blockDim.x + threadIdx.x, (wy + ((gridDim.x + qb) << 1))*blockDim.y + threadIdx.y };
-        }
+    //auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int bmark, const unsigned int emark){
+    //    //printf("emark = %u   bmark = %u\n", emark, bmark);
+    //    if(blockIdx.y < bmark){
+    //        // top triangular part
+    //        const unsigned int off = blockIdx.y >= emark-1 ? emark : 0;
+    //        unsigned int wy = blockIdx.y - off;
+    //        unsigned int wx = blockIdx.x;
+    //        const unsigned int h = WORDLEN - __clz(wy+1);
+    //        const unsigned int qb = (1 << h)*(wx >> h);
+    //        return (uint2){ (wx + qb + off)*blockDim.x + threadIdx.x, (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+
+    //        //unsigned int wy = blockIdx.y;
+    //        //unsigned int wx = blockIdx.x;
+    //        //const unsigned int h = WORDLEN - __clz(blockIdx.y+1);
+    //        //const unsigned int qb = (1 << h)*(blockIdx.x >> h);
+    //        //return (uint2){ (blockIdx.x + qb)*blockDim.x + threadIdx.x, (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+    //    }
+    //    else{
+    //        // middle block
+    //        const unsigned int bx = blockIdx.x;
+    //        const unsigned int bposy = blockIdx.y - bmark;
+    //        const unsigned int by = bposy + emark - 1;
+    //        const unsigned int offx = gridDim.x;
+    //        const unsigned int offy = (gridDim.y - bmark ) >> 1;
+    //        const unsigned int c = bposy < offy? 0 : 1;
+    //        return (uint2){ (bx + offx*c)*blockDim.x + threadIdx.x, (by-offy*c)*blockDim.y + threadIdx.y };
+    //    }
+    //};
+    #define Q 0.0009765625f
+    //#define Q 0.25f
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int aux1, const unsigned int aux2){
+        const unsigned int h = WORDLEN - __clz(blockIdx.y+1);
+        const unsigned int qb = (1 << h)*(blockIdx.x >> h);
+        const bool k = blockIdx.y < gridDim.y-1 ? 0 : 1;
+        //const bool k = (int) (blockIdx.y * Q);
+        //printf("blockIdx.y = %i   limit = %i   k = %i\n", blockIdx.y, gridDim.y-2, k);
+        //return (uint2){ (blockIdx.x + qb)*blockDim.x + threadIdx.x, (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+        return (uint2){ (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, (blockIdx.y - k + (qb << 1))*blockDim.y + threadIdx.y };
     };
     //*/
     

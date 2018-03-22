@@ -29,7 +29,7 @@
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
-//#define EXTRASPACE
+#define EXTRASPACE
 
 // integer log2
 __host__ __device__ int cf_log2i(const int val){
@@ -46,13 +46,7 @@ void print_array(DTYPE *a, const int n){
 }
 
 void print_matrix(MTYPE *mat, const int no, const char *msg){
-#ifdef EXTRASPACE
-    // mostrar doble
-    int n = 2*no;
-#else
-    // mostrar justo
     int n = no;
-#endif
     // writing result to frame
 	for(int i=0; i<n; i++){
 	    for(int j=0; j<n; j++){
@@ -79,7 +73,7 @@ void print_map(MTYPE *mat, const int no, const char *msg, dim3 grid, dim3 block)
     int h = grid.y*block.y;
     const int gap = 3;
     const int framex = n + w + gap;
-    const int framey = h + 5;
+    const int framey = n > h? n + 5 : h + 5;
 
     int b=0;
     char frame[framey][framex];
@@ -190,7 +184,7 @@ void init(unsigned long no, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **
 #ifdef DEBUG
 	printf("2-simplex: n=%i  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE)*(*msize)/(1024*1024));
     if(n <= PRINTLIMIT){
-        print_matrix(*hmat, no, "host matrix");
+        print_matrix(*hmat, n, "host matrix");
     }
 #endif
 }
@@ -240,16 +234,17 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     // vertical
     //int n = no/2; 
     //int n = 1 << (WORDLEN - __builtin_clz(no)); 
-
-    int w = (int)ceil(n/2.0);
-    int h = n-1;
+    int w = (int)ceil((n+1)/2.0);
+    //int h = n;
     int extra = 0;
     int nu = 1 << ((int)ceil(log2f(n)));
     printf("nu = %i\n", nu);
     //extra = ceil((float)(nu - n)/2.0);
     printf("extra = %i\n", extra);
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    grid = dim3((extra + w + block.x-1)/block.x, (h+block.y-1)/block.y, 1);
+    int nb = (n + block.x - 1)/block.x;
+    //grid = dim3((extra + w + block.x-1)/block.x, (h+block.y-1)/block.y, 1);
+    grid = dim3(ceil((nb-1.0)/2.0), nb+1, 1);
     
     
     //// vertical any 'n'
@@ -275,28 +270,29 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     //block = dim3(BSIZE2D, BSIZE2D, 1);
     ////grid = dim3(nblhalf + obx + exu, nbl+1, 1);
     //grid = dim3(obx + nblhalf + exu, nbl+1, 1);
-#ifdef DEBUG
-	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
-#endif
     //*bx = nblhalf;
     //*ex = nblhalf + obx;
     //*bx = obx;
     //*ex = obx + nblhalf;
     //printf("n=%u  l=%u  nb=%u  nbl=%u  nblhalf = %u obx=%u  lobx=%u  exu=%u bx=%u  ex=%u \n", n, l, nb, nbl, nblhalf, obx, lobx, exu, *bx, *ex);
+#ifdef DEBUG
+	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+#endif
 }// powers of two assumed for now
 
 void gen_hadouken_pspace_tall(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *bmark, unsigned int *emark){
     int nl = 1 << (int)floor(log2f(n));
+    printf("nl = %i\n", nl);
     int w = (int)ceil(nl/2.0);
-    int extrah = n - nl + 1;
-    int h = nl - 1 + 3*extrah;
-    int fakeh = nl - 1 + 2*extrah;
+    int extrah = n - nl;
+    int h = nl + 3*extrah;
+    int fakeh = nl - 1 + 1*extrah;
     block = dim3(BSIZE2D, BSIZE2D, 1);
     grid  = dim3((w + block.x-1)/block.x, (h + block.y-1)/block.y, 1);
     dim3 fakegrid  = dim3((w + block.x-1)/block.x, (fakeh + block.y-1)/block.y, 1);
     int hoffset = fakegrid.y - grid.x*2;
-    *bmark = grid.x*2;
-    *emark = *bmark + hoffset;  
+    *emark = grid.x*2;  
+    *bmark = *emark + hoffset;
 #ifdef DEBUG
 	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
