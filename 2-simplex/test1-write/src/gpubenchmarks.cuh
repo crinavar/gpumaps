@@ -241,7 +241,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int aux1, const unsigned int aux2){
         const unsigned int h = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb = (1 << h)*(blockIdx.x >> h);
-        const bool k = blockIdx.y < gridDim.y-1 ? 0 : 1;
+        const bool k = blockIdx.y + 1 - gridDim.y == 0 ? 1 : 0;
         //const bool k = (int) (blockIdx.y * Q);
         //printf("blockIdx.y = %i   limit = %i   k = %i\n", blockIdx.y, gridDim.y-2, k);
         //return (uint2){ (blockIdx.x + qb)*blockDim.x + threadIdx.x, (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
