@@ -200,11 +200,10 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     MTYPE *hmat, *dmat;
 	unsigned long msize, trisize;
     dim3 block, grid;
-    unsigned int bmark=0, emark=0;
-    unsigned int bx=0, ex=0;
+    unsigned int aux1=0, aux2=0;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     //gen_hadouken_pspace_tall(n, block, grid, &bmark, &emark);
-    gen_hadouken_pspace(n, block, grid, &bx, &ex);
+    gen_hadouken_pspace(n, block, grid, &aux1, &aux2);
     printf("gen_hadouken_pspace(%i, ...)\n", n);
     ///*
     // vertical map
@@ -241,7 +240,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int aux1, const unsigned int aux2){
         const unsigned int h = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb = (1 << h)*(blockIdx.x >> h);
-        const bool k = blockIdx.y + 1 - gridDim.y == 0 ? 1 : 0;
+        const bool k = blockIdx.y - aux1 == 0 ? 1 : 0;
         //const bool k = (int) (blockIdx.y * Q);
         //printf("blockIdx.y = %i   limit = %i   k = %i\n", blockIdx.y, gridDim.y-2, k);
         //return (uint2){ (blockIdx.x + qb)*blockDim.x + threadIdx.x, (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
@@ -252,10 +251,10 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     // benchmark
 #ifdef EXTRASPACE
     // mostrar doble
-    double time = benchmark_map(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, bmark, emark);
+    double time = benchmark_map(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, aux1, aux2);
 #else
     // mostrar justo
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, bmark, emark);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, aux1, aux2);
 #endif
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);

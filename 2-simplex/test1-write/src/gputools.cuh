@@ -224,7 +224,7 @@ void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 }
 
 // powers of two assumed for now
-void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *bx, unsigned int *ex){
+void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2){
     /*
     // horizontal 
     int w = n-1;
@@ -235,7 +235,7 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
 
     // vertical
     //int n = no/2; 
-    //int n = 1 << (WORDLEN - __builtin_clz(no)); 
+    //int nprev = 1 << (WORDLEN - __builtin_clz(no)); 
     int w = (int)ceil((n+1)/2.0);
     //int h = n;
     int extra = 0;
@@ -245,8 +245,13 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     printf("extra = %i\n", extra);
     block = dim3(BSIZE2D, BSIZE2D, 1);
     int nb = (n + block.x - 1)/block.x;
+    int nblow = 1 << (WORDLEN - __builtin_clz(nb)); 
     //grid = dim3((extra + w + block.x-1)/block.x, (h+block.y-1)/block.y, 1);
-    grid = dim3(ceil((nb-1.0)/2.0), nb+1, 1);
+    int gx = nblow <= 1? nblow + 1 : nblow;
+    int gy = nblow;
+    grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
+    *aux1 = nblow;
+    *aux2 = 0;
     
     
     //// vertical any 'n'
