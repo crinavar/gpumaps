@@ -29,10 +29,12 @@
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
-#define EXTRASPACE
+//#define EXTRASPACE
 
+// declaration
 template<typename Lambda>
-__global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, unsigned int aux1, unsigned int aux2);
+__global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
+
 // integer log2
 __host__ __device__ int cf_log2i(const int val){
     int copy = val;
@@ -224,64 +226,37 @@ void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 }
 
 // powers of two assumed for now
-void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2){
-    /*
-    // horizontal 
-    int w = n-1;
-    int h = n/2;
-    block = dim3(BSIZE2D, BSIZE2D, 1);
-    grid = dim3((w+block.x-1)/block.x + 2, (h+block.y-1)/block.y, 1);
-    */
-
-    // vertical
-    //int n = no/2; 
-    //int nprev = 1 << (WORDLEN - __builtin_clz(no)); 
-    int w = (int)ceil((n+1)/2.0);
-    //int h = n;
-    int extra = 0;
+void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+    // 1) covering from greater simplex
     int nu = 1 << ((int)ceil(log2f(n)));
-    printf("nu = %i\n", nu);
-    //extra = ceil((float)(nu - n)/2.0);
-    printf("extra = %i\n", extra);
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    int nb = (n + block.x - 1)/block.x;
-    int nblow = 1 << (WORDLEN - __builtin_clz(nb)); 
-    //grid = dim3((extra + w + block.x-1)/block.x, (h+block.y-1)/block.y, 1);
-    int gx = nblow <= 1? nblow + 1 : nblow;
-    int gy = nblow;
+    int nbo = (n + block.x - 1)/block.x;
+    int nb = (nu + block.x - 1)/block.x;
+    int gx = nb <= 1? nb + 1 : nb;
+    int gy = nbo;
     grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
-    *aux1 = nblow;
-    *aux2 = 0;
-    
-    
-    //// vertical any 'n'
-    //const unsigned int nb = (n + BSIZE2D - 1)/BSIZE2D;
+    *aux1 = nbo-1;
+    *aux2 = ((int)floor(log2f(grid.x)));
 
-    //const unsigned int l = WORDLEN - __builtin_clz(n);
-    //const unsigned int powl = 1 << l;
-    //const unsigned int nbl = (powl + BSIZE2D - 1)/BSIZE2D; 
-    //const unsigned int obx = nb - nbl;
-    //unsigned int aux_exu=0;
-    //unsigned int lobx = 0;
-    //if(obx <= 1){
-    //    aux_exu=0;
-    //}
-    //else{
-    //    lobx = WORDLEN - __builtin_clz(obx-1);
-    //    aux_exu = ((obx-1) - (1 << lobx) == 0) ?  (obx-1) : (1 << (lobx+1));
-    //    printf("1 << lobx = %i\n", 1 << lobx);
-    //}
-    //const unsigned int exu = ceil((double)aux_exu/2.0);
-    //const unsigned int nblhalf = nbl/2;
-    //printf("aux_exu = %i, aux_exu/2.0f = %f  ceil(aux_exu/2.0f) = %f  exu = %i\n", aux_exu, aux_exu/2.0f, ceil(aux_exu/2.0f), exu);
+    printf("n = %i  nu = %i\n", n, nu);
+
+    // 2) covering from lower simplex + rows of blocks
+    //int nlow = 1 << ((int)floor(log2f(n)));
     //block = dim3(BSIZE2D, BSIZE2D, 1);
-    ////grid = dim3(nblhalf + obx + exu, nbl+1, 1);
-    //grid = dim3(obx + nblhalf + exu, nbl+1, 1);
-    //*bx = nblhalf;
-    //*ex = nblhalf + obx;
-    //*bx = obx;
-    //*ex = obx + nblhalf;
-    //printf("n=%u  l=%u  nb=%u  nbl=%u  nblhalf = %u obx=%u  lobx=%u  exu=%u bx=%u  ex=%u \n", n, l, nb, nbl, nblhalf, obx, lobx, exu, *bx, *ex);
+    //int nbo = (n + block.x - 1)/block.x;
+    //int nb = (nlow + block.x - 1)/block.x;
+    //int gx = nb <= 1? nb + 1 : nb;
+    //int gy = nbo;
+    //int s = nbo - nb;
+    //printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, s);
+    ////int extraby = ceil( (double)nbo/ceil((gx-1.0)/2.0 ));
+    //int extraby = s;
+    //s = 1 << ((int)ceil(log2f(s)));
+    //grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby+s+1, 1);
+    //*aux1 = nb-1;
+    //*aux2 = ((int)floor(log2f(grid.x)));
+    //*aux3 = gy+extraby+1;
+    //printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  sy = %i\n", extraby, *aux1, *aux2, *aux3, s);
 #ifdef DEBUG
 	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
@@ -312,9 +287,7 @@ void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 }
 
 template<typename Lambda>
-double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
-        unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat,
-        Lambda map, const unsigned int aux1, const unsigned int aux2){
+double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -324,6 +297,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
 #endif
 	for(int i=0; i<REPEATS; i++){
         //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
+        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
     }
     last_cuda_error("warmup");
@@ -335,20 +309,19 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
+        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
     }
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
 #endif
-    last_cuda_error("benchmark-check");
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     time = time/(float)REPEATS;
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
-    last_cuda_error("benchmark-check");
+    last_cuda_error("benchmark_map: run");
     return time;
 }
 
@@ -377,7 +350,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
         dim3 dg_diag(n/block.x, bm, 1);
         // recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
 	    // printf("\t[diagonal, s=%i] block= %i x %i x %i    grid = %i x %i x %i\n", streamindex%MAXSTREAMS, block.x, block.y, block.z, dg_diag.x, dg_diag.y, dg_diag.z);
-        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by);
+        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by, 0);
         last_cuda_error("diagonal");
         by += bm;
 
@@ -388,7 +361,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             grid = dim3(n/(block.x*2), bm*pow(2, i), 1);
             //recursive_method <<< dimgrid, dimblock >>> (a_d, N, b_d, N2, bx, by);	
             //printf("\t[recursive k=%i, s=%i] block= %i x %i x %i    grid = %i x %i x %i\n", k, streamindex%MAXSTREAMS, block.x, block.y, block.z, grid.x, grid.y, grid.z);
-            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by);	
+            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by, 0);	
             last_cuda_error("recursive");
             by += bm*pow(2,i);
 
@@ -410,12 +383,12 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
         by = 0;
         dim3 dg_diag(n/block.x, bm, 1);
         //recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
-        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by);
+        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by, 0);
         by += bm;
         for(int i=0; i<k; i++){
             dim3 grid(n/(block.x*2), bm*pow(2, i), 1);
             //recursive_method <<< dimgrid, dimblock >>> (a_d, N, b_d, N2, bx, by);	
-            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by);	
+            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by, 0);	
             by += bm*pow(2,i);
         }
         cudaThreadSynchronize();
@@ -447,7 +420,7 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
 #endif
     for(int i=0; i<n; ++i){
         for(int j=0; j<n; ++j){
-            unsigned int index = i*n + j;
+            unsigned long index = i*n + j;
             if(i > j){
                 if( hmat[index] != 1 ){
                     #ifdef DEBUG
