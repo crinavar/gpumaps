@@ -28,12 +28,12 @@
 //#define OFFSET 0.5f
 __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n){
     // (1) constant write
-    //unsigned long i = (unsigned long)p.y*n + (unsigned long)p.x;
-    //mat[i] = 1;
+    unsigned long i = (unsigned long)p.y*n + (unsigned long)p.x;
+    mat[i] += 1;
 
     // or (2) recursion level write
-    const int b = (int)log2f(blockIdx.y+1) + 1;
-    mat[p.y*n + p.x] = b;
+    //const int b = (int)log2f(blockIdx.y+1) + 1;
+    //mat[p.y*n + p.x] = b;
 }
 // metodo kernel test
 template<typename Lambda>
