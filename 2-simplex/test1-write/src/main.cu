@@ -41,6 +41,9 @@ int main(int argc, char **argv){
     unsigned int REPEATS = atoi(argv[3]);
     unsigned int method = atoi(argv[4]);
     cudaSetDevice(dev);
+#ifdef DEBUG
+    print_gpu_specs(dev);
+#endif
     last_cuda_error("cudaSetDevice");
     double time;
     switch(method){

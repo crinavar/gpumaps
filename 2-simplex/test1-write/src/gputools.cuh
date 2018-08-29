@@ -29,6 +29,11 @@
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
+
+
+// for HADOUKEN
+#define NSTOP 0
+#define HADOUKEN_TOLERANCE 3
 //#define EXTRASPACE
 
 // declaration
@@ -42,6 +47,18 @@ __host__ __device__ int cf_log2i(const int val){
     while (copy >>= 1) 
         ++r;
     return r;
+}
+
+void print_gpu_specs(int dev){
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, dev);
+    printf("Device Number: %d\n", dev);
+    printf("  Device name:                  %s\n", prop.name);
+    printf("  Multiprocessor Count:         %d\n", prop.multiProcessorCount);
+    printf("  Concurrent Kernels:           %d\n", prop.concurrentKernels);
+    printf("  Memory Clock Rate (KHz):      %d\n", prop.memoryClockRate);
+    printf("  Memory Bus Width (bits):      %d\n", prop.memoryBusWidth);
+    printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
 }
 
 void print_array(DTYPE *a, const int n){
@@ -225,9 +242,28 @@ void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
     }
 }
 
-// powers of two assumed for now
-void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
-    // 1) covering from greater simplex
+void gen_hadouken_pspace_lower(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+    // lower pow, tetrahedron covering (simplex + lower block)
+    int nlow = 1 << ((int)floor(log2f(n)));
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    int nbo = (n + block.x - 1)/block.x;
+    int nb = (nlow + block.x - 1)/block.x;
+    int gx = nb <= 1? nb + 1 : nb;
+    int gy = nbo;
+    int extraby = nbo - nb;
+    printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
+    grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby, 1);
+    *aux1 = nb-1 + extraby;
+    *aux2 = nbo-(nb-1);
+    *aux3 = gy+extraby+1;
+    printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
+#ifdef DEBUG
+	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+#endif
+}
+
+void gen_hadouken_pspace_upper(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+    // covering from greater simplex
     int nu = 1 << ((int)ceil(log2f(n)));
     block = dim3(BSIZE2D, BSIZE2D, 1);
     int nbo = (n + block.x - 1)/block.x;
@@ -236,49 +272,46 @@ void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned
     int gy = nbo;
     grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
     *aux1 = nbo-1;
-    *aux2 = ((int)floor(log2f(grid.x)));
-
-    printf("n = %i  nu = %i\n", n, nu);
-
-    // 2) covering from lower simplex + rows of blocks
-    //int nlow = 1 << ((int)floor(log2f(n)));
-    //block = dim3(BSIZE2D, BSIZE2D, 1);
-    //int nbo = (n + block.x - 1)/block.x;
-    //int nb = (nlow + block.x - 1)/block.x;
-    //int gx = nb <= 1? nb + 1 : nb;
-    //int gy = nbo;
-    //int s = nbo - nb;
-    //printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, s);
-    ////int extraby = ceil( (double)nbo/ceil((gx-1.0)/2.0 ));
-    //int extraby = s;
-    //s = 1 << ((int)ceil(log2f(s)));
-    //grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby+s+1, 1);
-    //*aux1 = nb-1;
     //*aux2 = ((int)floor(log2f(grid.x)));
-    //*aux3 = gy+extraby+1;
-    //printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  sy = %i\n", extraby, *aux1, *aux2, *aux3, s);
-#ifdef DEBUG
-	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
-#endif
-}// powers of two assumed for now
-
-void gen_hadouken_pspace_tall(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *bmark, unsigned int *emark){
-    int nl = 1 << (int)floor(log2f(n));
-    printf("nl = %i\n", nl);
-    int w = (int)ceil(nl/2.0);
-    int extrah = n - nl;
-    int h = nl + 3*extrah;
-    int fakeh = nl - 1 + 1*extrah;
-    block = dim3(BSIZE2D, BSIZE2D, 1);
-    grid  = dim3((w + block.x-1)/block.x, (h + block.y-1)/block.y, 1);
-    dim3 fakegrid  = dim3((w + block.x-1)/block.x, (fakeh + block.y-1)/block.y, 1);
-    int hoffset = fakegrid.y - grid.x*2;
-    *emark = grid.x*2;  
-    *bmark = *emark + hoffset;
+    *aux2 = nb - (nbo-1);
+    printf("n = %i  nu = %i\n", n, nu);
 #ifdef DEBUG
 	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
 }
+
+// powers of two assumed for now
+void gen_hadouken_pspace(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+    // 1) covering from greater simplex
+    //int nu = 1 << ((int)ceil(log2f(n)));
+    //block = dim3(BSIZE2D, BSIZE2D, 1);
+    //int nbo = (n + block.x - 1)/block.x;
+    //int nb = (nu + block.x - 1)/block.x;
+    //int gx = nb <= 1? nb + 1 : nb;
+    //int gy = nbo;
+    //grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
+    //*aux1 = nbo-1;
+    //*aux2 = ((int)floor(log2f(grid.x)));
+    //printf("n = %i  nu = %i\n", n, nu);
+
+    // 2) tetrahedron covering (simplex + lower block)
+    int nlow = 1 << ((int)floor(log2f(n)));
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    int nbo = (n + block.x - 1)/block.x;
+    int nb = (nlow + block.x - 1)/block.x;
+    int gx = nb <= 1? nb + 1 : nb;
+    int gy = nbo;
+    int extraby = nbo - nb;
+    printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
+    grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby, 1);
+    *aux1 = nb-1 + extraby;
+    *aux2 = nbo-(nb-1);
+    *aux3 = gy+extraby+1;
+    printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
+#ifdef DEBUG
+	printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+#endif
+}// powers of two assumed for now
 
 void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
     block = dim3(BSIZE2D, BSIZE2D, 1);
@@ -325,6 +358,146 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     return time;
 }
 
+unsigned int count_recursions(unsigned int n){
+    unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
+    unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
+    unsigned int nh = n;
+    unsigned int numrec = 0;
+    do{
+        if( hpow - nh < HADOUKEN_TOLERANCE){
+            nh = 0;
+        }
+        else{
+            nh = nh - lpow;
+            lpow = 1 << ((unsigned int)floor(log2f(nh)));
+            hpow = 1 << ((unsigned int)ceil(log2f(nh)));
+        }
+        numrec++;
+    }
+    while(nh > NSTOP);
+    return numrec;
+}
+
+void create_grids_streams(unsigned int n, dim3 *grids, dim3 block, int *aux1, int *aux2, int *aux3, cudaStream_t *streams, int *offsets){
+    unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
+    unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
+    unsigned int off = 0;
+    unsigned int nh = n;
+    int numrec = count_recursions(n);
+    printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
+    printf("numrecs = %i\n", numrec);
+    int nr = 0;
+    do{
+        if( hpow - nh < HADOUKEN_TOLERANCE){
+            // case n is close to the next power of two, we do all
+            gen_hadouken_pspace_upper(nh, block, grid[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
+            offsets[nr] = off;
+            nh = 0;
+        }
+        else{
+            // case n is far from its next power of two, we continue in halves
+            gen_hadouken_pspace_lower(nh, block, grid[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
+            offsets[nr] = off;
+            nh = nh - lpow;
+            off += lpow;
+            lpow = 1 << ((unsigned int)floor(log2f(nh)));
+            hpow = 1 << ((unsigned int)ceil(log2f(nh)));
+        }
+        cudaStreamCreate(&streams[nr]);
+        nr++;
+    }
+    while(nh > NSTOP);
+    nh = n;
+}
+
+void print_grids_offsets(unsigned int numrec, dim3 *grids, dim3 block, int *offsets){
+    for(int i=0; i<numrec; ++i){
+        printf("[%i] = block(%i, %i, %i)  grid(%i, %i, %i)   offset = %i\n",
+                block.x, block.y, block.z, );
+    }
+}
+
+template<typename Lambda>
+double benchmark_map_hadouken(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+    // Warmup
+#ifdef DEBUG
+    printf("warmup.........................."); fflush(stdout);
+#endif
+	for(int i=0; i<REPEATS; i++){
+        //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
+        //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
+        cudaThreadSynchronize();
+    }
+    last_cuda_error("warmup");
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+    printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
+#endif
+    float time = 0.0;
+    unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
+    unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
+    unsigned int off = 0;
+    unsigned int nh = n, pam1=aux1, pam2 = aux2, pam3=aux3;
+    printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
+    int numrec = count_recursions(n);
+    printf("numrecs = %i\n", numrec);
+    getchar();
+    dim3 *grids = (dim3*)malloc(sizeof(dim3)*numrec);
+    int *offsets  = (int*)malloc(sizeof(int)*numrec);
+    int *aux1  = (int*)malloc(sizeof(int)*numrec);
+    int *aux2  = (int*)malloc(sizeof(int)*numrec);
+    int *aux3  = (int*)malloc(sizeof(int)*numrec);
+    cudaStream_t *streams = (cudaStream_t*)malloc(sizeof(cudaStream_t)*numrec);
+    create_grids_streams(n, grids, block, streams, offsets);
+    print_grids_offsets(numrec, grids, offsets);
+    
+    // measure running time
+    cudaEventRecord(start, 0);	
+    for(int k=0; k<REPEATS; k++){
+        // recursive to the side -->
+        do{
+            //printf("solving problem of n=%i\n", nh); fflush(stdout);
+            //printf("lpow = %i, hpow = %i, off=%i\n", lpow, hpow, off);
+            //printf("nh = %i\n", nh);
+            if( hpow - nh < HADOUKEN_TOLERANCE){
+                //printf("upper\n");
+                // case n is close to the next power of two, we do all
+                gen_hadouken_pspace_upper(nh, block, grid, &pam1, &pam2, &pam3);
+                kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, pam1, pam2, off);	
+                nh = 0;
+            }
+            else{
+                // case n is far from its next power of two, we continue in halves
+                gen_hadouken_pspace_lower(nh, block, grid, &pam1, &pam2, &pam3);
+                kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, pam1, pam2, off);	
+                nh = nh - lpow;
+                off += lpow;
+                lpow = 1 << ((unsigned int)floor(log2f(nh)));
+                hpow = 1 << ((unsigned int)ceil(log2f(nh)));
+                //printf("lower\n");
+            }
+            cudaThreadSynchronize();
+            print_dmat(128, n, n*n, dmat);
+            getchar();
+        }
+        while(nh > NSTOP);
+        nh = n;
+    }
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+#endif
+    cudaEventRecord(stop,0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop); // that's our time!
+    time = time/(float)REPEATS;
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+    last_cuda_error("benchmark_map: run");
+    return time;
+}
 
 template<typename Lambda1, typename Lambda2>
 double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const unsigned int n, const unsigned int msize, const unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda1 maprec, Lambda2 mapdiag, const unsigned int m, const unsigned int k){

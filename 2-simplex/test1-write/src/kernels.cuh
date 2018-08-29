@@ -26,15 +26,15 @@
 
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
-
 __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n){
-    unsigned long i = (unsigned long)p.y*n + (unsigned long)p.x;
-    mat[i] = 1;
-    //mat[p.y*n + p.x] = 1;
-    //const int b = (int)log2f(blockIdx.y+1) + 1;
-    //mat[p.y*n + p.x] = b;
-}
+    // (1) constant write
+    //unsigned long i = (unsigned long)p.y*n + (unsigned long)p.x;
+    //mat[i] = 1;
 
+    // or (2) recursion level write
+    const int b = (int)log2f(blockIdx.y+1) + 1;
+    mat[p.y*n + p.x] = b;
+}
 // metodo kernel test
 template<typename Lambda>
 __global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
@@ -52,7 +52,6 @@ __global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYP
     //    printf("\n[OUT] block (x,y)=(%i, %i) -> (%i, %i)\n", blockIdx.x, blockIdx.y, p.x, p.y);
     //}
 }
-
 __device__ inline float newton_sqrtf(const float number) {
     int i;
     float x,y;

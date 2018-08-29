@@ -201,33 +201,46 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     dim3 block, grid;
     unsigned int aux1=0, aux2=0, aux3=3;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    //gen_hadouken_pspace_tall(n, block, grid, &bmark, &emark);
     gen_hadouken_pspace(n, block, grid, &aux1, &aux2, &aux3);
+    //gen_hadouken_pspace(n, block, grid, &aux1, &aux2, &aux3);
+#ifdef DEBUG
     printf("gen_hadouken_pspace(%i, ...)\n", n);
+#endif
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
         // 1) ceil(log(2^k)) version
-        // hacer el limite para el simplex
+        //// hacer el limite para el simplex
+        //const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+        //const unsigned int qb   = (1 << h)*(blockIdx.x >> h);
+        ////const bool k = blockIdx.y - aux1 == 0 ? 1 : 0;
+        //const bool k = blockIdx.y - gridDim.y + 1  == 0 ? 1 : 0;
+        //return (uint2){ (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, (blockIdx.y - k + (qb << 1))*blockDim.y + threadIdx.y };
+        ////int offx = dy & 3;
+        ////int offy = dy >> 2;
+        ////printf("thread x y   %i %i,   k =%i, aux1 = %i  dy %i   offx %i  offy %i\n", blockIdx.x, blockIdx.y, k, aux1, dy, offx, offy); 
+
+        // 2) trapezoid section 
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb   = (1 << h)*(blockIdx.x >> h);
-        //const bool k = blockIdx.y - aux1 == 0 ? 1 : 0;
-        const bool k = blockIdx.y - gridDim.y + 1  == 0 ? 1 : 0;
-        return (uint2){ (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, (blockIdx.y - k + (qb << 1))*blockDim.y + threadIdx.y };
-        //int offx = dy & 3;
-        //int offy = dy >> 2;
-        //printf("thread x y   %i %i,   k =%i, aux1 = %i  dy %i   offx %i  offy %i\n", blockIdx.x, blockIdx.y, k, aux1, dy, offx, offy); 
+        const int k = (int)blockIdx.y - aux1 > 0 ? 1 : 0;
+        //const bool k = blockIdx.y - gridDim.y + 1  == 0 ? 1 : 0;
+        //if(k){
+        //    printf("thread bx by   %i %i,   k =%i, aux1 = %i   aux2 = %i by-aux1 = %i\n", blockIdx.x, blockIdx.y, k, aux1, aux2, blockIdx.y - aux1); 
+        //}
+        return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
 
-        // 1) ceil(log(2^k)) version
-        // hacer el limite para el simplkex
         //const int  sy  = ((int)blockIdx.y - 1 - aux3);
         //const bool  s  = sy > 0 ? 1 : 0;
         //const unsigned int h    = WORDLEN - __clz(blockIdx.y+1 - s*aux3);
         //const unsigned int qb   = (1 << h)*(blockIdx.x >> h);
-        //const bool k = blockIdx.y - aux1 == 0 ? 1 : 0;
+        ////const bool k = blockIdx.y - aux1 == 0 ? 1 : 0;
         //const bool k = blockIdx.y - gridDim.y + 1  == 0 ? 1 : 0;
         //return (uint2){ (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, (blockIdx.y - k + (qb << 1))*blockDim.y + threadIdx.y };
-        //int offx = dy & 3;
-        //int offy = dy >> 2;
-        //printf("thread x y   %i %i,   k =%i, aux1 = %i  dy %i   offx %i  offy %i\n", blockIdx.x, blockIdx.y, k, aux1, dy, offx, offy); 
+
+
+
+
+
+        // others
 
         //return (uint2){ (blockIdx.x + qb + k*(dy & 3)*gridDim.x)*blockDim.x + threadIdx.x, (blockIdx.y - k*(dy - (dy >> 2)) + (qb << 1))*blockDim.y + threadIdx.y };
         //return (uint2){ (blockIdx.x + qb + (k*(dy & 3) << aux2))*blockDim.x + threadIdx.x, (blockIdx.y - k*(dy - (dy >> 2)) + (qb << 1))*blockDim.y + threadIdx.y };
@@ -250,7 +263,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
         //}
 
         // B) generic 'n' version
-        //const int q = ((int)blockIdx.y - aux2) >= 0 ? 1 : 0;
+        //int q = ((int)blockIdx.y - aux2) >= 0 ? 1 : 0;
         //const int bx = blockIdx.x;
         //const int by = blockIdx.y - q*aux2;
         //const unsigned int h = WORDLEN - __clz(by+1);
@@ -262,10 +275,12 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     // benchmark
 #ifdef EXTRASPACE
     // mostrar doble
-    double time = benchmark_map(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
+    //double time = benchmark_map(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
+    double time = benchmark_map_hadouken(REPEATS, block, grid, 2*n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
 #else
     // mostrar justo
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
+    //double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
+    double time = benchmark_map_hadouken(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, aux1, aux2, aux3);
 #endif
     // check result
     double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
@@ -371,5 +386,4 @@ double recursive_map(const unsigned long n, int recn, const unsigned int REPEATS
     free(hmat);
     return time*check;
 }
-
 #endif
