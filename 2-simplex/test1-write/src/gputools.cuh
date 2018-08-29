@@ -378,7 +378,7 @@ unsigned int count_recursions(unsigned int n){
     return numrec;
 }
 
-void create_grids_streams(unsigned int n, dim3 *grids, dim3 block, int *aux1, int *aux2, int *aux3, cudaStream_t *streams, int *offsets){
+void create_grids_streams(unsigned int n, dim3 *grids, dim3 block, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3, cudaStream_t *streams, int *offsets){
     unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
     unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
     unsigned int off = 0;
@@ -390,13 +390,13 @@ void create_grids_streams(unsigned int n, dim3 *grids, dim3 block, int *aux1, in
     do{
         if( hpow - nh < HADOUKEN_TOLERANCE){
             // case n is close to the next power of two, we do all
-            gen_hadouken_pspace_upper(nh, block, grid[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
+            gen_hadouken_pspace_upper(nh, block, grids[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
             offsets[nr] = off;
             nh = 0;
         }
         else{
             // case n is far from its next power of two, we continue in halves
-            gen_hadouken_pspace_lower(nh, block, grid[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
+            gen_hadouken_pspace_lower(nh, block, grids[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
             offsets[nr] = off;
             nh = nh - lpow;
             off += lpow;
@@ -412,21 +412,20 @@ void create_grids_streams(unsigned int n, dim3 *grids, dim3 block, int *aux1, in
 
 void print_grids_offsets(unsigned int numrec, dim3 *grids, dim3 block, int *offsets){
     for(int i=0; i<numrec; ++i){
-        printf("[%i] = block(%i, %i, %i)  grid(%i, %i, %i)   offset = %i\n",
-                block.x, block.y, block.z, );
+        printf("[%i] = block(%i, %i, %i)  grid(%i, %i, %i)   offset = %i\n", i, block.x, block.y, block.z, grids[i].x, grids[i].y, grids[i].z, offsets[i]);
     }
 }
 
 template<typename Lambda>
 double benchmark_map_hadouken(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     // Warmup
 #ifdef DEBUG
     printf("warmup.........................."); fflush(stdout);
 #endif
-	for(int i=0; i<REPEATS; i++){
+    for(int i=0; i<REPEATS; i++){
         //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
         //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
@@ -444,18 +443,25 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, dim3 grid, unsigned
     printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
     int numrec = count_recursions(n);
     printf("numrecs = %i\n", numrec);
-    getchar();
     dim3 *grids = (dim3*)malloc(sizeof(dim3)*numrec);
     int *offsets  = (int*)malloc(sizeof(int)*numrec);
-    int *aux1  = (int*)malloc(sizeof(int)*numrec);
-    int *aux2  = (int*)malloc(sizeof(int)*numrec);
-    int *aux3  = (int*)malloc(sizeof(int)*numrec);
+    unsigned int *auxs1  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
+    unsigned int *auxs2  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
+    unsigned int *auxs3  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
     cudaStream_t *streams = (cudaStream_t*)malloc(sizeof(cudaStream_t)*numrec);
-    create_grids_streams(n, grids, block, streams, offsets);
-    print_grids_offsets(numrec, grids, offsets);
-    
+    create_grids_streams(n, grids, block, auxs1, auxs2, auxs3, streams, offsets);
+    print_grids_offsets(numrec, grids, block, offsets);
+
     // measure running time
     cudaEventRecord(start, 0);	
+
+    for(unsigned int i=0; i<numrec; ++i){
+	kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+    	cudaThreadSynchronize();
+    	//print_dmat(128, n, n*n, dmat);
+    	//getchar();
+    }
+    /*
     for(int k=0; k<REPEATS; k++){
         // recursive to the side -->
         do{
@@ -486,16 +492,17 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, dim3 grid, unsigned
         while(nh > NSTOP);
         nh = n;
     }
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-#endif
+    */
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     time = time/(float)REPEATS;
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     last_cuda_error("benchmark_map: run");
+    #ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+    #endif
     return time;
 }
 
