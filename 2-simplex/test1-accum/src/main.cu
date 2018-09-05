@@ -55,10 +55,10 @@ int main(int argc, char **argv){
 	        time = bbox(n, REPEATS);
             break;
         case 2:
-            time = lambda_inverse(n, REPEATS);
+            time = lambda(n, REPEATS);
             break;
         case 3:
-            time = rectangle_map(n, REPEATS);
+            time = rectangle(n, REPEATS);
             break;
         case 4:
             time = hadouken(n, REPEATS);

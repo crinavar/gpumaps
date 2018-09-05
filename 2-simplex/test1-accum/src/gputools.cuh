@@ -37,7 +37,7 @@
 
 // declaration
 template<typename Lambda>
-__global__ void kernel_test(const unsigned int n, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
+__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
 
 // integer log2
 __host__ __device__ int cf_log2i(const int val){
@@ -220,13 +220,6 @@ void gen_bbox_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 	grid = dim3( (n + block.x -1)/block.x, (n + block.y - 1)/block.y, 1);	
 }
 
-void gen_avril_pspace(const unsigned int n, dim3 &block, dim3 &grid){
-    const int Na = n*(n-1)/2;
-	block = dim3(BSIZE1D, 1, 1);
-	unsigned long int sn2 = (Na+block.x-1)/block.x;
-    grid = dim3(sn2, 1, 1);
-}
-
 void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
     int rect_evenx = n/2;
     int rect_oddx = (int)ceil((float)n/2.0f);
@@ -291,8 +284,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     printf("warmup.........................."); fflush(stdout);
 #endif
 	for(int i=0; i<REPEATS; i++){
-        //kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2);	
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
+        kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
     }
     last_cuda_error("warmup");
@@ -304,7 +296,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
-        kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, aux1, aux2, aux3);	
+        kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
     }
 #ifdef DEBUG
@@ -406,8 +398,8 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     printf("warmup.............."); fflush(stdout);
 #endif
     for(int k=0; k<REPEATS; k++){
-	    for(int i=numrec-1; i>=0; --i){
-            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+	    for(int i=0; i<numrec; ++i){
+            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
             /* 
             #ifdef DEBUG
                 print_dmat(PRINTLIMIT, n, n*n, dmat);
@@ -415,9 +407,8 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
                 getchar();
             #endif
             */
-            
 	    }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
@@ -427,10 +418,10 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; ++k){
-	    for(unsigned int i=0; i<numrec; ++i){
-            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+	    for(int i=0; i<numrec; ++i){
+            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
 	    }
-    	cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);
@@ -446,87 +437,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     return time;
 }
 
-template<typename Lambda1, typename Lambda2>
-double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const unsigned int n, const unsigned int msize, const unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda1 maprec, Lambda2 mapdiag, const unsigned int m, const unsigned int k){
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
-	// Start record
-    // Warmup
-#ifdef DEBUG
-    printf("warmup.........................."); fflush(stdout);
-#endif
-    last_cuda_error("begin warmup");
-
-    unsigned int streamindex = 0;
-    cudaStream_t streams[MAXSTREAMS];
-    for(int i=0; i<MAXSTREAMS; ++i){
-        cudaStreamCreate( &streams[i] );
-    }
-    int bx=0, by=0;
-    int bm = m/block.x;
-	for(int r=0; r<REPEATS; r++){
-        by = 0;
-        dim3 dg_diag(n/block.x, bm, 1);
-        // recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
-	    // printf("\t[diagonal, s=%i] block= %i x %i x %i    grid = %i x %i x %i\n", streamindex%MAXSTREAMS, block.x, block.y, block.z, dg_diag.x, dg_diag.y, dg_diag.z);
-        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by, 0);
-        last_cuda_error("diagonal");
-        by += bm;
-
-        // print_dmat(128, n, msize, dmat);
-        // getchar();
-
-        for(int i=0; i<k; i++){
-            grid = dim3(n/(block.x*2), bm*pow(2, i), 1);
-            //recursive_method <<< dimgrid, dimblock >>> (a_d, N, b_d, N2, bx, by);	
-            //printf("\t[recursive k=%i, s=%i] block= %i x %i x %i    grid = %i x %i x %i\n", k, streamindex%MAXSTREAMS, block.x, block.y, block.z, grid.x, grid.y, grid.z);
-            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by, 0);	
-            last_cuda_error("recursive");
-            by += bm*pow(2,i);
-
-            //print_dmat(128, n, msize, dmat);
-            //getchar();
-
-        }
-        cudaThreadSynchronize();
-    }
-    last_cuda_error("warmup");
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-    printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
-#endif
-    float time = 0.0;
-    // measure running time
-    cudaEventRecord(start, 0);	
-	for(int r=0; r<REPEATS; r++){
-        by = 0;
-        dim3 dg_diag(n/block.x, bm, 1);
-        //recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
-        kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, mapdiag, bx, by, 0);
-        by += bm;
-        for(int i=0; i<k; i++){
-            dim3 grid(n/(block.x*2), bm*pow(2, i), 1);
-            //recursive_method <<< dimgrid, dimblock >>> (a_d, N, b_d, N2, bx, by);	
-            kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by, 0);	
-            by += bm*pow(2,i);
-        }
-        cudaThreadSynchronize();
-    }
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-#endif
-    last_cuda_error("benchmark-check");
-    cudaEventRecord(stop,0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop); // that's our time!
-    time = time/(float)REPEATS;
-	cudaEventDestroy(start);
-	cudaEventDestroy(stop);
-    last_cuda_error("benchmark-check");
-    return time;
-}
-int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
+int verify_result(unsigned int n, const unsigned int checkval, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
 #ifdef DEBUG
     printf("verifying result................"); fflush(stdout);
 #endif
@@ -542,9 +453,9 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
         for(int j=0; j<n; ++j){
             unsigned long index = i*n + j;
             if(i > j){
-                if( hmat[index] != 1 ){
+                if( hmat[index] != checkval ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }
@@ -552,15 +463,15 @@ int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata
             else if(i < j){
                 if( hmat[index] != 0 ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }
             }
             else if(i == j){
-                if(hmat[index] != 0 && hmat[index] != 1){
+                if(hmat[index] != 0 && hmat[index] != checkval){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }

@@ -45,16 +45,15 @@ double bbox(const unsigned long n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    //return time*check;
-    return time;
+    return time*check;
 }
 
-double lambda_inverse(const unsigned long n, const unsigned int REPEATS){
+double lambda(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Lambda (inverse)]\n");
 #endif
@@ -78,14 +77,13 @@ double lambda_inverse(const unsigned long n, const unsigned int REPEATS){
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
+    // check result (2*REPEATS because of the warmup)
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    //return time*check;
-    return time;
+    return time*check;
 }
 
 
@@ -110,16 +108,15 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, dim3(0,0,0), block);
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0,0,0), block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata); 
     free(hmat);
-    //return time*check;
-    return time;
+    return time*check;
 }
 
-double rectangle_map(const unsigned long n, const unsigned int REPEATS){
+double rectangle(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Rectangle]\n");
 #endif
@@ -134,6 +131,7 @@ double rectangle_map(const unsigned long n, const unsigned int REPEATS){
         uint2 p;
         p.y = blockIdx.y * blockDim.y + threadIdx.y;
         p.x = blockIdx.x * blockDim.x + threadIdx.x;
+        // threads out of the space
         if(p.y >= n+1 || p.x > n/2){
             p = (uint2){1,0};
         }
@@ -151,12 +149,11 @@ double rectangle_map(const unsigned long n, const unsigned int REPEATS){
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
     // check result
-    double check = (float)verify_result(n, msize, hdata, ddata, hmat, dmat, grid, block);
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
 	cudaFree(ddata);
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
-    //return time*check;
-    return time;
+    return time*check;
 }
 #endif
