@@ -416,6 +416,8 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 #endif
     // measure running time
     cudaEventRecord(start, 0);	
+    numrec = count_recursions(n, BSIZE2D);
+    create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
     for(int k=0; k<REPEATS; ++k){
 	    for(int i=0; i<numrec; ++i){
             kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
@@ -436,7 +438,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     return time;
 }
 
-int verify_result(unsigned int n, const unsigned int checkval, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
+int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
 #ifdef DEBUG
     printf("verifying result................"); fflush(stdout);
 #endif
@@ -448,13 +450,14 @@ int verify_result(unsigned int n, const unsigned int checkval, unsigned int msiz
         print_map(hmat, n, "host matrix", grid, block);
     }
 #endif
+    unsigned long index;
     for(int i=0; i<n; ++i){
         for(int j=0; j<n; ++j){
-            unsigned long index = i*n + j;
+            index = i*n + j;
             if(i > j){
                 if( hmat[index] != checkval ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }
@@ -462,7 +465,7 @@ int verify_result(unsigned int n, const unsigned int checkval, unsigned int msiz
             else if(i < j){
                 if( hmat[index] != 0 ){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }
@@ -470,7 +473,7 @@ int verify_result(unsigned int n, const unsigned int checkval, unsigned int msiz
             else if(i == j){
                 if(hmat[index] != 0 && hmat[index] != checkval){
                     #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
                     #endif
                     return 0;
                 }

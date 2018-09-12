@@ -112,13 +112,13 @@ double rectangle(const unsigned long n, const unsigned int REPEATS){
         p.x = blockIdx.x * blockDim.x + threadIdx.x;
         // threads beyond n/2 (because of block padding) must be filtered, otherwise we 
         // have multiple threads on the same data elements at the n/2 region
-        if(p.y > n || p.x >= (n >> 1)){
+        if(p.x >= n/2){
             p = (uint2){1,0};
         }
         else{
             if( p.x >= p.y ){
                 // (n & 1) applies the correct offset for odd or even 'n'
-                p.x = (n-1) - p.x - (n & 1);
+                p.x = (n-1) - p.x - (n % 2);
                 p.y = (n-1) - p.y;
             }
             else{
@@ -142,6 +142,7 @@ double rectangle(const unsigned long n, const unsigned int REPEATS){
 #endif
 }
 
+#define MAX_UINT 4294967295
 double hadouken(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Hadouken]\n");
@@ -154,12 +155,21 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("gen_hadouken_pspace(%i, ...)\n", n);
 #endif
+    // trapezoid map
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
-        // trapezoid map 
+        // (1) optimzized version: just arithmetic and bit-level operations
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
-        const unsigned int qb   = (blockIdx.x >> h) << h;
-        const int k = (int)blockIdx.y - aux1 > 0 ? 1 : 0;
+        const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
+        const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
+        return (uint2){ (blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+
+        // (2) normal version: arithmetic, bit and logical operations
+        /*
+        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+        const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+        const unsigned int k = (int)blockIdx.y - aux1 > 0? 1 : 0;
         return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
+        */
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
