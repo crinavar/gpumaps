@@ -252,16 +252,15 @@ void gen_hadouken_pspace_lower(const unsigned int n, dim3 &block, dim3 &grid, un
 #endif
 }
 
-    // covering from greater simplex
+// covering from greater simplex
 void gen_hadouken_pspace_upper(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
     block = dim3(BSIZE2D, BSIZE2D, 1);
     int nu = 1 << ((int)ceil(log2f(n)));
-    int nbo = (n + block.x - 1)/block.x;
     int nb = (nu + block.x - 1)/block.x;
     int gx = nb <= 1? nb + 1 : nb;
     int gy = nb;
     grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
-    *aux1 = nbo-1;
+    *aux1 = nb-1;
     *aux2 = 1;
 #ifdef DEBUG
 	printf("[upper] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);

@@ -86,6 +86,50 @@ double lambda(const unsigned long n, const unsigned int REPEATS){
     return time*check;
 }
 
+double rectangle(const unsigned long n, const unsigned int REPEATS){
+#ifdef DEBUG
+    printf("[Rectangle]\n");
+#endif
+    DTYPE *hdata, *ddata;
+    MTYPE *hmat, *dmat;
+	unsigned long msize, trisize;
+    dim3 block, grid;
+	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
+    gen_rectangle_pspace(n, block, grid);
+    printf("n = %i\n", n);
+    // formulate map
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
+        uint2 p;
+        p.y = blockIdx.y * blockDim.y + threadIdx.y;
+        p.x = blockIdx.x * blockDim.x + threadIdx.x;
+        // threads beyond n/2 (because of block padding) must be filtered, otherwise we 
+        // have multiple threads on the same data elements at the n/2 region
+        if(p.y > n || p.x >= (n >> 1)){
+            p = (uint2){1,0};
+        }
+        else{
+            if( p.x >= p.y ){
+                //p = (uint2){1,0};
+                p.x = (n-1) - p.x - (n & 1);
+                p.y = (n-1) - p.y;
+            }
+            else{
+                //p = (uint2){1,0};
+                p.y = p.y-1;
+            }
+        }
+        return p;
+    };
+    // benchmark
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
+    // check result
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
+	cudaFree(ddata);
+	cudaFree(dmat);
+	free(hdata); 
+    free(hmat);
+    return time*check;
+}
 
 double hadouken(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
@@ -102,7 +146,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
         // trapezoid map 
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
-        const unsigned int qb   = (1 << h)*(blockIdx.x >> h);
+        const unsigned int qb   = (blockIdx.x >> h) << h;
         const int k = (int)blockIdx.y - aux1 > 0 ? 1 : 0;
         return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
     };
@@ -116,44 +160,4 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     return time*check;
 }
 
-double rectangle(const unsigned long n, const unsigned int REPEATS){
-#ifdef DEBUG
-    printf("[Rectangle]\n");
-#endif
-    DTYPE *hdata, *ddata;
-    MTYPE *hmat, *dmat;
-	unsigned long msize, trisize;
-    dim3 block, grid;
-	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    gen_rectangle_pspace(n, block, grid);
-    // formulate map
-    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
-        uint2 p;
-        p.y = blockIdx.y * blockDim.y + threadIdx.y;
-        p.x = blockIdx.x * blockDim.x + threadIdx.x;
-        // threads out of the space
-        if(p.y >= n+1 || p.x > n/2){
-            p = (uint2){1,0};
-        }
-        else{
-            if( p.x >= p.y ){
-                p.x = n - p.x -1;
-                p.y = n - p.y -1;
-            }
-            else{
-                p.y = p.y-1;
-            }
-        }
-        return p;
-    };
-    // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result
-    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
-	cudaFree(ddata);
-	cudaFree(dmat);
-	free(hdata); 
-    free(hmat);
-    return time*check;
-}
 #endif
