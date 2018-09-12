@@ -29,7 +29,8 @@
 __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n, const int a){
     // (1) constant write
     unsigned long i = (unsigned long)p.y*n + (unsigned long)p.x;
-    mat[i] += a;
+    //mat[i] += a;
+    mat[i] = a;
 
     // or (2) recursion level write
     //const int b = (int)log2f(blockIdx.y+1) + 1;

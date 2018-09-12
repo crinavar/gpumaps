@@ -50,7 +50,11 @@ double bbox(const unsigned long n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
+#ifdef DEBUG
+    return time;
+#else
     return time*check;
+#endif
 }
 
 double lambda(const unsigned long n, const unsigned int REPEATS){
@@ -83,7 +87,11 @@ double lambda(const unsigned long n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
+#ifdef DEBUG
+    return time;
+#else
     return time*check;
+#endif
 }
 
 double rectangle(const unsigned long n, const unsigned int REPEATS){
@@ -109,12 +117,11 @@ double rectangle(const unsigned long n, const unsigned int REPEATS){
         }
         else{
             if( p.x >= p.y ){
-                //p = (uint2){1,0};
+                // (n & 1) applies the correct offset for odd or even 'n'
                 p.x = (n-1) - p.x - (n & 1);
                 p.y = (n-1) - p.y;
             }
             else{
-                //p = (uint2){1,0};
                 p.y = p.y-1;
             }
         }
@@ -128,7 +135,11 @@ double rectangle(const unsigned long n, const unsigned int REPEATS){
 	cudaFree(dmat);
 	free(hdata); 
     free(hmat);
+#ifdef DEBUG
+    return time;
+#else
     return time*check;
+#endif
 }
 
 double hadouken(const unsigned long n, const unsigned int REPEATS){
@@ -157,7 +168,11 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     cudaFree(dmat);
     free(hdata); 
     free(hmat);
+#ifdef DEBUG
+    return time;
+#else
     return time*check;
+#endif
 }
 
 #endif
