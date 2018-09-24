@@ -104,21 +104,21 @@ double rectangle(const unsigned long n, const unsigned int REPEATS){
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
     gen_rectangle_pspace(n, block, grid);
-    printf("n = %i\n", n);
+    //printf("n = %i\n", n);
     // formulate map
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
         uint2 p;
         p.y = blockIdx.y * blockDim.y + threadIdx.y;
         p.x = blockIdx.x * blockDim.x + threadIdx.x;
-        // threads beyond n/2 (because of block padding) must be filtered, otherwise we 
-        // have multiple threads on the same data elements at the n/2 region
-        if(p.x >= n/2){
+        // threads beyond n/2 (in grid coords, because of block padding) must be 
+        // filtered, otherwise we will have multiple threads on the same data elements at the n/2 region
+        if(p.y > n || p.x >= n>>1){
             p = (uint2){1,0};
         }
         else{
             if( p.x >= p.y ){
                 // (n & 1) applies the correct offset for odd or even 'n'
-                p.x = (n-1) - p.x - (n % 2);
+                p.x = (n-1) - p.x - (n & 1);
                 p.y = (n-1) - p.y;
             }
             else{
@@ -161,7 +161,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
         const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
-        return (uint2){ (blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+        return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
 
         // (2) normal version: arithmetic, bit and logical operations
         /*
@@ -169,6 +169,19 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
         const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
         const unsigned int k = (int)blockIdx.y - aux1 > 0? 1 : 0;
         return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
+        */
+
+
+        // (3) simple version: no programming tricks
+        /*
+        if( aux1 >= blockIdx.y ){
+            const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+            const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+            return (uint2){ aux3 + (blockIdx.x + qb)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+        }
+        else{
+            return (uint2){ aux3 + (blockIdx.x + gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2)*blockDim.y + threadIdx.y };
+        }
         */
     };
     // benchmark
