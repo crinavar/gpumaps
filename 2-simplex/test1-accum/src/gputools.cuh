@@ -243,10 +243,16 @@ void gen_hadouken_pspace_lower(const unsigned int n, dim3 &block, dim3 &grid, un
     int extraby = nbo - nb;
     //printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
     grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby, 1);
+    /* big blocks for trapezoid tower */
     *aux1 = nb-1 + extraby;
     *aux2 = nbo-(nb-1);
     *aux3 = gy+extraby+1;
     //printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
+    /* a -- b  blocks (alternating to the side odd and even for the trapezoid)
+    *aux1 = nb-1;
+    *aux2 = nbo-(nb-1);
+    *aux3 = gy+extraby+1;
+    */
 #ifdef DEBUG
 	printf("[lower] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
@@ -416,8 +422,9 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 #endif
     // measure running time
     cudaEventRecord(start, 0);	
-    numrec = count_recursions(n, BSIZE2D);
-    create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
+    //numrec = count_recursions(n, BSIZE2D);
+    //create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
+    #pragma loop unroll
     for(int k=0; k<REPEATS; ++k){
 	    for(int i=0; i<numrec; ++i){
             kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
@@ -426,7 +433,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     }
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop); // that's our time!
+    cudaEventElapsedTime(&time, start, stop);
 
     time = time/(float)REPEATS;
     cudaEventDestroy(start);

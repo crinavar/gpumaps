@@ -45,17 +45,4 @@ __global__ void kernel_test(const unsigned int n, const int a, const unsigned in
         work(data, dmat, p, n, a);
     }
 }
-__device__ inline float newton_sqrtf(const float number) {
-    int i;
-    float x,y;
-    //const float f = 1.5F;
-    x = number * 0.5f;
-    i  = * ( int * ) &number;
-    i  = 0x5f3759df - ( i >> 1 );
-    y  = * ( float * ) &i;
-    y  *= (1.5f -  x * y * y);
-    y  *= (1.5f -  x * y * y); 
-    y  *= (1.5f -  x * y * y); 
-    return number * y;
-}
 #endif
