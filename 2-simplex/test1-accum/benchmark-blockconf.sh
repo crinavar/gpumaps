@@ -21,6 +21,9 @@ TMEAN[0]=0
 TVAR[0]=0
 TSTDEV[0]=0
 TSTERR[0]=0
+# show time
+echo "STARTING TIME"
+timedatectl
 for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
     echo "Benchmarking for B=${B} METHODS=${NM}"
@@ -72,3 +75,6 @@ do
     done 
     echo " "
 done 
+echo "END TIME"
+timedatectl
+echo "*******************************"
