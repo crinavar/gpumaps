@@ -4,7 +4,7 @@
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 //                                                                              //
-//  Copyright © 2015 Cristobal A. Navarro, Wei Huang.                           //
+//  Copyright © 2018 Cristobal A. Navarro.                                      //
 //                                                                              //
 //  This file is part of gpumaps.                                               //
 //  gpumaps is free software: you can redistribute it and/or modify             //

@@ -4,7 +4,7 @@
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 //                                                                              //
-//  Copyright © 2015 Cristobal A. Navarro, Wei Huang.                           //
+//  Copyright © 2018 Cristobal A. Navarro.                                      //
 //                                                                              //
 //  This file is part of gpumaps.                                               //
 //  gpumaps is free software: you can redistribute it and/or modify             //
@@ -304,12 +304,12 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
         kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
         cudaThreadSynchronize();
     }
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-#endif
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop); // that's our time!
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+#endif
     time = time/(float)REPEATS;
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
