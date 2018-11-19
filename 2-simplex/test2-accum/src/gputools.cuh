@@ -290,7 +290,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
 #endif
 	for(int i=0; i<REPEATS; i++){
         kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
@@ -302,7 +302,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
         kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     cudaEventRecord(stop,0);
     cudaEventSynchronize(stop);

@@ -6,7 +6,7 @@ ARCH=sm_30
 PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -DHADO_FACTOR=${HADO_FACTOR} -arch ${ARCH} --std=c++11 --expt-extended-lambda -default-stream per-thread
 #PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -DHADO_FACTOR=${HADO_FACTOR} -arch ${ARCH} --std=c++11 --expt-extended-lambda 
 SOURCE=src/main.cu
-BINARY=test1-accum
+BINARY=test2-accum
 all:
 	nvcc ${PARAMS} ${SOURCE} -o bin/${BINARY}
 

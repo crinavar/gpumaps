@@ -107,14 +107,14 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
 #endif
 	for(int i=0; i<REPEATS; i++){
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result ping\n");
         print_dmat(n, msize, dmat2);
         getchar();
         #endif
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result pong\n");
         print_dmat(n, msize, dmat1);
@@ -131,9 +131,9 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
@@ -167,14 +167,14 @@ double benchmark_map_avril(const int REPEATS, dim3 block, dim3 grid, unsigned in
 #endif
 	for(int i=0; i<REPEATS; i++){
         kernel_test_avril<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result ping\n");
         print_dmat(n, msize, dmat2);
         getchar();
         #endif
         kernel_test_avril<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result pong\n");
         print_dmat(n, msize, dmat1);
@@ -191,9 +191,9 @@ double benchmark_map_avril(const int REPEATS, dim3 block, dim3 grid, unsigned in
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
         kernel_test_avril<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         kernel_test_avril<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
@@ -227,14 +227,14 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid, unsigne
 #endif
 	for(int i=0; i<REPEATS; i++){
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result ping\n");
         print_dmat(n, msize, dmat2);
         getchar();
         #endif
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         #ifdef DEBUG
         printf("result pong\n");
         print_dmat(n, msize, dmat1);
@@ -251,9 +251,9 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid, unsigne
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
@@ -314,7 +314,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             //getchar();
 
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         by = 0;
         // recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
 	    // printf("\t[diagonal, s=%i] block= %i x %i x %i    grid = %i x %i x %i\n", streamindex%MAXSTREAMS, block.x, block.y, block.z, dg_diag.x, dg_diag.y, dg_diag.z);
@@ -336,7 +336,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             //print_dmat(128, n, msize, dmat);
             //getchar();
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
@@ -358,7 +358,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat1, dmat2, maprec, bx, by);	
             by += bm*pow(2,i);
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
         by = 0;
         //recursive_diagonal <<< dg_diag, dimblock >>> (a_d, N, b_d, N2);
         kernel_test <<< dg_diag, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat2, dmat1, mapdiag, bx, by);
@@ -369,7 +369,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat2, dmat1, maprec, bx, by);	
             by += bm*pow(2,i);
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);

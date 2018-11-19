@@ -133,7 +133,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
 #endif
 	for(int i=0; i<REPEATS; i++){
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
@@ -145,15 +145,15 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat, map, 0, 0);	
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
+    cudaEventRecord(stop,0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop); // that's our time!
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
 #endif
     last_cuda_error("benchmark-check");
-    cudaEventRecord(stop,0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop); // that's our time!
     time = time/(float)REPEATS;
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -205,7 +205,7 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             //getchar();
 
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
@@ -227,15 +227,15 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
             kernel_test <<< grid, block, 0, streams[(streamindex++) % MAXSTREAMS] >>> (n, msize, ddata, dmat, maprec, bx, by);	
             by += bm*pow(2,i);
         }
-        cudaThreadSynchronize();
+        cudaDeviceSynchronize();
     }
+    cudaEventRecord(stop,0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop); // that's our time!
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
 #endif
     last_cuda_error("benchmark-check");
-    cudaEventRecord(stop,0);
-    cudaEventSynchronize(stop);
-    cudaEventElapsedTime(&time, start, stop); // that's our time!
     time = time/(float)REPEATS;
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -243,47 +243,6 @@ double benchmark_map_recursive(const int REPEATS, dim3 block, dim3 grid, const u
     return time;
 }
 int verify_result(unsigned int n, unsigned int msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat){
-    return 1;
-#ifdef DEBUG
-    printf("verifying result................"); fflush(stdout);
-#endif
-    cudaMemcpy(hdata, ddata, sizeof(DTYPE)*n, cudaMemcpyDeviceToHost);
-    cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
-    for(int i=0; i<n; ++i){
-        for(int j=0; j<n; ++j){
-            unsigned int index = i*n + j;
-            if(i > j){
-                if( hmat[index] != 1 ){
-                    #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
-                    #endif
-                    return 0;
-                }
-            }
-            else if(i < j){
-                if( hmat[index] != 0 ){
-                    #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
-                    #endif
-                    return 0;
-                }
-            }
-            else if(i == j){
-                if(hmat[index] != 0 && hmat[index] != 1){
-                    #ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%i) = %i\n", i, j, index, hmat[index]);
-                    #endif
-                    return 0;
-                }
-            }
-        }
-    }
-#ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-    if(n <= 64){
-        print_matrix(hmat, n, "host matrix");
-    }
-#endif
     return 1;
 }
 
