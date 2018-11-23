@@ -9,7 +9,7 @@
 
 int main(int argc, char **argv){
 	//srand ( time(NULL) );
-    checkargs(argc, argv, 4, "./prog <b> <r> <statfile>\nb = power of 2\nr = 0, 1, 2, ...\n");
+    checkargs(argc, argv, 4, "./prog <b> <r> <statfile>\n[exponent for blocksize] 2^b\n[fractal level] r = 0, 1, 2, ...\n");
 
     printf("maxlong %lu\n", LONG_MAX);
     int bpower = atoi(argv[1]);
