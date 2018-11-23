@@ -14,8 +14,8 @@ __inline__ __device__
 uint2 warp_reduce(uint2 lm, const int WSIZE) {
     //printf("WSIZE = %i\n", WSIZE);
     for (int offset = (WSIZE/2); offset > 0; offset /= 2){
-        lm.x += __shfl_down(lm.x, offset, WSIZE);
-        lm.y += __shfl_down(lm.y, offset, WSIZE);
+        lm.x += __shfl_down_sync(0xFFFFFFFF, lm.x, offset, WSIZE);
+        lm.y += __shfl_down_sync(0xFFFFFFFF, lm.y, offset, WSIZE);
     }
     return lm;
 }
