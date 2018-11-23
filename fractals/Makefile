@@ -1,5 +1,5 @@
-ARCH=sm_30
-NVCCFLAGS=-O0 -arch ${ARCH} --std=c++11 --expt-extended-lambda
+ARCH=sm_60
+NVCCFLAGS=-O3 -arch ${ARCH} --std=c++11 --expt-extended-lambda
 CFLAGS=--std=c++11
 all: gpudummy.o main.o
 	nvcc ${NVCCFLAGS} *.o -o prog
