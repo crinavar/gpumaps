@@ -176,5 +176,4 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     return time*check;
 #endif
 }
-
 #endif
