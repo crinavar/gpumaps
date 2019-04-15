@@ -45,7 +45,7 @@
 int main(int argc, char **argv){
     //srand ( time(NULL) );
 	if(argc < 7){
-		printf("arguments must be: <dev> <N> <repeats> <method> <density> <seed>\nmethod:\n1 bounding box\n2 lambda\n3 rectangle\n4 hadouken\n\n");
+		printf("arguments must be: <dev> <N> <repeats> <method> <density> <seed>\nmethod:\n1 bounding box\n2 lambda\n3 rectangle\n4 trapezoids\n\n");
 		exit(1);
 	}
     unsigned int dev        = atoi(argv[1]);

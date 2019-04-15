@@ -4,7 +4,7 @@
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 //                                                                              //
-//  Copyright © 2015 Cristobal A. Navarro, Wei Huang.                           //
+//  Copyright © 2018 Cristobal A. Navarro.                                      //
 //                                                                              //
 //  This file is part of gpumaps.                                               //
 //  gpumaps is free software: you can redistribute it and/or modify             //
@@ -40,52 +40,102 @@
 
 
 #define CINDEX(x, y)     ((1+(y))*CLEN + (1+(x)))
-#define GINDEX(x, y, n)  ((y)*(n) + (x))
+#define GINDEX(x, y, n)  ((1+((unsigned long)y))*(((unsigned long)n)+2)  + (1+(x)))
+
+
+__global__ void kernel_update_ghosts(const unsigned int n, const unsigned long msize, MTYPE *dmat1, MTYPE *dmat2){
+    // update ghosts cells
+    // this kernel uses a linear grid of size n
+    int tid = blockIdx.x * blockDim.x + threadIdx.x;
+    if(tid >= n){return;}
+    // left
+    dmat2[(tid+1)*(n+2) + 0] = dmat1[(n)*(n+2) + n - tid];
+    // bottom
+    dmat2[(n+1)*(n+2) + (tid+1)] = dmat1[(n-tid)*(n+2) + 1];
+    // diagonal (inner)
+    dmat2[(tid)*(n+2) + (tid+1)] = dmat1[(n-tid)*(n+2) + (n-tid)];
+    // diagonal (outer)
+    dmat2[(tid)*(n+2) + (tid+2)] = dmat1[(n-tid)*(n+2) + (n-tid-1)];
+    // special cells
+    if(tid==0){
+        // bot-left ghost
+        dmat2[(n+1)*(n+2) + 0]   = dmat1[(n)*(n+2) + 0];
+        // bot-right-most ghost
+        dmat2[(n-1)*(n+2) + (n+1)] = dmat1[(n)*(n+2) + n];
+    }
+}
 
 __device__ __inline__ void set_halo(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 lp, int2 p){
-    // FREE BOUNDARY CONDITIONS
+    // EMPANADA FANTASMA BOUNDARY CONDITIONS
     // left side
     if(lp.x == 0){
-        cache[CINDEX(lp.x - 1, lp.y)]      = p.x == 0 ? 0 : mat[ GINDEX(p.x-1, p.y, N) ];
-        // bot-left corner
-        if(lp.y == BSIZE2D-1){
-            cache[CINDEX(lp.x - 1, lp.y + 1)]      = (p.x == 0 || p.y == N-1) ? 0 : mat[ GINDEX(p.x-1, p.y+1, N) ];
-        }
-        // top-left corner
-        if(lp.y == 0){
-            cache[CINDEX(lp.x - 1, lp.y - 1)]      = (p.x == 0 || p.y == 0) ? 0 : mat[ GINDEX(p.x-1, p.y-1, N) ];
-        }
+        cache[CINDEX(lp.x - 1, lp.y)]      = mat[ GINDEX(p.x-1, p.y, N) ];
     }
     // right side
     if(lp.x == BSIZE2D-1){
-        cache[CINDEX(lp.x + 1, lp.y)]      = p.x == N-1 ? 0 : mat[ GINDEX(p.x+1, p.y, N) ];
-        // bot-right corner
-        if(lp.y == BSIZE2D-1){
-            cache[CINDEX(lp.x + 1, lp.y + 1)]      = (p.x == N-1 || p.y == N-1) ? 0 : mat[ GINDEX(p.x+1, p.y+1, N) ];
-        }
-        // top-right corner
-        if(lp.y == 0){
-            cache[CINDEX(lp.x + 1, lp.y - 1)]      = (p.x == N-1 || p.y == 0) ? 0 : mat[ GINDEX(p.x+1, p.y-1, N) ];
-        }
+        cache[CINDEX(lp.x + 1, lp.y)]      = mat[ GINDEX(p.x+1, p.y, N) ];
     }
     // bottom side
     if(lp.y == BSIZE2D-1){
-        cache[CINDEX(lp.x, lp.y + 1)]      = p.y == N-1 ? 0 : mat[ GINDEX(p.x, p.y+1, N) ];
+        cache[CINDEX(lp.x, lp.y + 1)]      = mat[ GINDEX(p.x, p.y+1, N) ];
     }
     // top side
     if(lp.y == 0){
-        cache[CINDEX(lp.x, lp.y - 1)]      = p.y == 0 ? 0 : mat[ GINDEX(p.x, p.y-1, N) ];
+        cache[CINDEX(lp.x, lp.y - 1)]      = mat[ GINDEX(p.x, p.y-1, N) ];
+    }
+    // local thread 0 in charge of the four corners
+    if(lp.x + lp.y == 0){
+        // top-left
+        cache[CINDEX(-1, -1)]           = mat[ GINDEX(p.x-1, p.y-1, N) ];
+        // top-right
+        cache[CINDEX(BSIZE2D, -1)]      = p.x + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y - 1, N) ] : 0;
+        // bot-lefj
+        cache[CINDEX(-1, BSIZE2D)]      = p.y + BSIZE2D <= N ? mat[ GINDEX(p.x-1, p.y + (BSIZE2D), N) ] : 0;
+        // bot-right
+        cache[CINDEX(BSIZE2D, BSIZE2D)] = p.x + BSIZE2D <= N && p.y + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y + BSIZE2D, N) ] : 0;
     }
 }
 
-__device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 lp, int2 p){
-    // loading the thread's element
-	if(p.x > n-1 || p.y > n-1){return;}
-    cache[CINDEX(lp.x, lp.y)] = mat[GINDEX(p.x, p.y, n)];
-    // loading the cache's halo
-    set_halo(cache, mat, n, lp, p);
-    __syncthreads();
+__device__ __inline__ void set_halo_rectangle(MTYPE *cache, MTYPE *mat, unsigned int N, uint3 lp, int2 p){
+    // EMPANADA FANTASMA BOUNDARY CONDITIONS
+    if(lp.x == 0){
+        cache[CINDEX(lp.x - 1, lp.y)]      = mat[ GINDEX(p.x-1, p.y, N) ];
+    }
+    // right side
+    if(lp.x == BSIZE2D-1){
+        cache[CINDEX(lp.x + 1, lp.y)]      = mat[ GINDEX(p.x+1, p.y, N) ];
+    }
+    // bottom side
+    if(lp.y == BSIZE2D-1){
+        cache[CINDEX(lp.x, lp.y + 1)]      = mat[ GINDEX(p.x, p.y+1, N) ];
+    }
+    // top side
+    if(lp.y == 0){
+        cache[CINDEX(lp.x, lp.y - 1)]      = mat[ GINDEX(p.x, p.y-1, N) ];
+    }
+    // local thread 0 in charge of the four corners
+    if(lp.x + lp.y == 0){
+        // top-left
+        cache[CINDEX(-1, -1)]           = mat[ GINDEX(p.x-1, p.y-1, N) ];
+        // top-right
+        cache[CINDEX(BSIZE2D, -1)]      = p.x + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y - 1, N) ] : 0;
+        // bot-lefj
+        cache[CINDEX(-1, BSIZE2D)]      = p.y + BSIZE2D <= N ? mat[ GINDEX(p.x-1, p.y + (BSIZE2D), N) ] : 0;
+        // bot-right
+        cache[CINDEX(BSIZE2D, BSIZE2D)] = p.x + BSIZE2D <= N && p.y + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y + BSIZE2D, N) ] : 0;
+    }
 }
+
+// metodo kernel cached test
+/*
+template<typename Lambda>
+__global__ void kernel_test(const unsigned int n, const unsigned long msize, DTYPE *data, MTYPE *dmat1, MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
+	auto p = map(n, msize, aux1, aux2, aux3);
+    if(p.x <= p.y && p.y < n){
+        work_nocache(data, dmat1, dmat2, p, n);
+    }
+}
+*/
 
 __device__ inline int h(int k, int a, int b){
     return (1 - (((k - a) >> 31) & 0x1)) * (1 - (((b - k) >> 31) & 0x1));
@@ -93,74 +143,59 @@ __device__ inline int h(int k, int a, int b){
 
 __device__ void work_cache(DTYPE *data, MTYPE *mat1, MTYPE *mat2, MTYPE *cache, uint3 lp, int2 p, int n){
     // neighborhood count 
-    int nc =    
-                cache[CINDEX(lp.x-1, lp.y-1)] + cache[CINDEX(lp.x, lp.y-1)] + cache[CINDEX(lp.x+1, lp.y-1)] + 
-                cache[CINDEX(lp.x-1, lp.y  )] +                   0             + cache[CINDEX(lp.x+1, lp.y  )] + 
+    int nc =    cache[CINDEX(lp.x-1, lp.y-1)] + cache[CINDEX(lp.x, lp.y-1)] + cache[CINDEX(lp.x+1, lp.y-1)] + 
+                cache[CINDEX(lp.x-1, lp.y  )] +                               cache[CINDEX(lp.x+1, lp.y  )] + 
                 cache[CINDEX(lp.x-1, lp.y+1)] + cache[CINDEX(lp.x, lp.y+1)] + cache[CINDEX(lp.x+1, lp.y+1)];
    unsigned int c = cache[CINDEX(lp.x, lp.y)];
-    /* 
-   if(c == 1){
-       printf("cell (%i,%i):\n %i %i %i\n %i %i %i\n %i %i %i\n\n", p.x, p.y, 
-                cache[CINDEX(lp.x-1, lp.y-1)], cache[CINDEX(lp.x, lp.y-1)], cache[CINDEX(lp.x+1, lp.y-1)],
-                cache[CINDEX(lp.x-1, lp.y  )],                   c            , cache[CINDEX(lp.x+1, lp.y  )],
-                cache[CINDEX(lp.x-1, lp.y+1)], cache[CINDEX(lp.x, lp.y+1)], cache[CINDEX(lp.x+1, lp.y+1)]);
-   }
-   */
    // transition function applied to state 'c' and written into mat2
+   //printf("p.x, p.y =  (%i, %i)\n", p.x, p.y);
+   //if(p.x == 1 && p.y == 1){
+   //    printf("cell (%i, %i) = %i   (%i neighbors alive)\n", p.x, p.y, c, nc);
+   //}
    mat2[GINDEX(p.x, p.y, n)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
 }
 
 __device__ void work_nocache(DTYPE *data, MTYPE *mat1, MTYPE *mat2, int2 p, int n){
-    // left
-    int nc = 0;
-    if(p.x > 0){
-        nc += mat1[GINDEX(p.x-1, p.y, n)];
-        // top left corner
-        if(p.y > 0){
-            nc += mat1[GINDEX(p.x-1, p.y-1, n)];
-        }
-        // bot left corner
-        if(p.y < n-1){
-            nc += mat1[GINDEX(p.x-1, p.y+1, n)];
-        }
-    }
-    // right
-    if(p.x < n-1){
-        nc += mat1[GINDEX(p.x+1, p.y, n)];
-        // top right corner
-        if(p.y > 0){
-            nc += mat1[GINDEX(p.x+1, p.y-1, n)];
-        }
-        // bot right corner
-        if(p.y < n-1){
-            nc += mat1[GINDEX(p.x+1, p.y+1, n)];
-        }
-    }
-    // top
-    if(p.y > 0){
-        nc += mat1[GINDEX(p.x, p.y-1, n)];
-    }
-    // bottom
-    if(p.y < n-1){
-        nc += mat1[GINDEX(p.x, p.y+1, n)];
-    }
+    int nc = mat1[GINDEX(p.x-1, p.y-1, n)] + mat1[GINDEX(p.x, p.y-1, n)] + mat1[GINDEX(p.x+1, p.y-1, n)] + 
+             mat1[GINDEX(p.x-1, p.y, n  )] +                               mat1[GINDEX(p.x+1, p.y, n  )] + 
+             mat1[GINDEX(p.x-1, p.y+1, n)] + mat1[GINDEX(p.x, p.y+1, n)] + mat1[GINDEX(p.x+1, p.y+1, n)];
     unsigned int c = mat1[GINDEX(p.x, p.y, n)];
     // transition function applied to state 'c' and written into mat2
     mat2[GINDEX(p.x, p.y, n)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
 }
 
+__device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 lp, int2 p){
+    // loading the thread's element
+    if(p.x <= n && p.y <= n){
+        cache[CINDEX(lp.x, lp.y)] = mat[GINDEX(p.x, p.y, n)];
+        set_halo(cache, mat, n, lp, p);
+    }
+    // loading the cache's halo
+    __syncthreads();
+}
+__device__ __inline__ void load_cache_rectangle(MTYPE *cache, MTYPE *mat, unsigned int n, uint3 lp, int2 p){
+    // loading the thread's element
+    if(p.x <= n && p.y <= n){
+        cache[CINDEX(lp.x, lp.y)] = mat[GINDEX(p.x, p.y, n)];
+        set_halo_rectangle(cache, mat, n, lp, p);
+    }
+    // loading the cache's halo
+    __syncthreads();
+}
 // metodo kernel cached test
+///*
 template<typename Lambda>
 __global__ void kernel_test(const unsigned int n, const unsigned long msize, DTYPE *data, MTYPE *dmat1, MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
     __shared__ MTYPE cache[CSPACE];
 	auto p = map(n, msize, aux1, aux2, aux3);
-    if(p.x != -1){
-        load_cache(cache, dmat1, n, threadIdx, p);
-    }
-    if(p.x < p.y && p.y < n){
+    load_cache(cache, dmat1, n, threadIdx, p);
+    if(p.x <= p.y && p.y < n){
         work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+        //work_nocache(data, dmat1, dmat2, p, n);
     }
 }
+//*/
+
 
 // metodo kernel cached test
 template<typename Lambda>
@@ -169,25 +204,30 @@ __global__ void kernel_test_rectangle(const unsigned int n,const unsigned long m
 	auto p = map(n, msize, aux1, aux2, aux3);
     // cache
     __shared__ MTYPE cache[CSPACE];
-    // mixed diagonal - no cache
     if(blockIdx.x == blockIdx.y){
-        if(p.x < p.y && p.y < n){
+        //printf("THREAD IN DIAG\n");
+        // block diagonal - no cache
+        if(p.x <= p.y && p.y < n){
             work_nocache(data, dmat1, dmat2, p, n);
         }
     }
     else if(blockIdx.x < blockIdx.y){
+        //printf("THREAD IN BOT\n");
         // lower triangular - standard cache
-        load_cache(cache, dmat1, n, threadIdx, p);
-        if(p.x < p.y && p.y < n){
+        load_cache_rectangle(cache, dmat1, n, threadIdx, p);
+        if(p.x <= p.y && p.y < n){
             work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+            //work_nocache(data, dmat1, dmat2, p, n);
         }
     }
     else{
+        //printf("THREAD IN UPPER\n");
         // upper triangular - inverted cache
         uint3 invlp = (uint3){BSIZE2D-1 - threadIdx.x, BSIZE2D-1 - threadIdx.y, 0};
-        load_cache(cache, dmat1, n, invlp, p);
-        if(p.x < p.y && p.y < n){
+        load_cache_rectangle(cache, dmat1, n, invlp, p);
+        if(p.x <= p.y && p.y < n){
             work_cache(data, dmat1, dmat2, cache, invlp, p, n);
+            //work_nocache(data, dmat1, dmat2, p, n);
         }
     }
 }

@@ -14,35 +14,43 @@ R=$8
 SAMPLES=$9
 BINARY=${10}
 OUTFILE=${11}
-METHODS=("dummy" "BBox" "Avril" "Lambda (Newton)" "Lambda (Default)" "Flatrec" "Lambda (Inverse)" "Rectangle" "Recursive")
-NM=8
+HFACTOR=1
+METHODS=("BBox" "Lambda" "Rectangle" "Trapezoid")
+NM=$((${#METHODS[@]}))
 TMEAN[0]=0
 TVAR[0]=0
 TSTDEV[0]=0
 TSTERR[0]=0
+# show time
+echo "STARTING TIME"
+timedatectl
 for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
-    echo "Benchmarking for B=${B}"
+    echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
-    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} `
+    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR}`
     echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
         echo "DEV=${DEV}  N=${N} B=${B} R=${R}"
         echo -n "${N}   ${B}    " >> data/${OUTFILE}_B${B}.dat
-        #RPARAM=$(($N/${LB}))
-        RPARAM=$(($N/${B}))
         for q in `seq 1 ${NM}`;
         do
             M=0
             S=0
             # Chosen MAP
-            echo "./${BINARY} ${DEV}    ${N} ${R}    ${q} 0.2 7019 ${RPARAM}"
-            echo -n "${METHODS[$q]} ($q) map (${SAMPLES} Samples)............."
+            echo "./${BINARY} ${DEV}    ${N} ${R}    ${q}"
+            echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
             for k in `seq 1 ${SAMPLES}`;
             do
-                x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019 ${RPARAM}`
+                x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019`
+            done
+            echo "done"
+            echo -n "[BENCHMARK] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)............."
+            for k in `seq 1 ${SAMPLES}`;
+            do
+                x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019`
                 oldM=$M;
                 M=$(echo "scale=10;  $M+($x-$M)/$k"           | bc)
                 S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | bc)
@@ -61,6 +69,12 @@ do
             echo " "
         done
         echo " " >> data/${OUTFILE}_B${B}.dat
+        echo ""
+        echo ""
+        echo ""
     done 
     echo " "
 done 
+echo "END TIME"
+timedatectl
+echo "*******************************"

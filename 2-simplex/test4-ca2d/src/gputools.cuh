@@ -57,55 +57,62 @@ void print_array(DTYPE *a, const int n){
 		printf("a[%d] = %f\n", i, a[i]);
 }
 
-void print_matrix(MTYPE *mat, const int n, const char *msg){
-    printf("[%s]:\n", msg);
-	for(int i=0; i<n; i++){
-	    for(int j=0; j<n; j++){
-            if( i > j ){
-                if(mat[i*n + j] == 1){
-                    printf("1 ");
-                }
-                else{
-                    printf("  ");
-                }
-            }
-            else{
-                printf("%i ", mat[i*n + j]);
-            }
-        }
-        printf("\n");
-    }
-}
 
 void set_randconfig(MTYPE *mat, const unsigned long n, double DENSITY){
+    // note: this function does not act on the ghost cells (boundaries)
     for(unsigned int y=0; y<n; ++y){
         for(unsigned int x=0; x<n; ++x){
-            unsigned long i = y*n + x;
-            mat[i] = x < y? (((double)rand()/RAND_MAX) <= DENSITY ? 1 : 0) : 0;
+            unsigned long i = (y+1)*(n+2) + (x+1);
+            mat[i] = x <= y ? (((double)rand()/RAND_MAX) <= DENSITY ? 1 : 0) : 0;
+        }
+    }
+}
+void set_ids(MTYPE *mat, const unsigned long n){
+    // note: this function does not act on the ghost cells (boundaries)
+    int count = 0;
+    for(unsigned int y=0; y<n; ++y){
+        for(unsigned int x=0; x<n; ++x){
+            unsigned long i = (y+1)*(n+2) + (x+1);
+            if(y >= x){
+                mat[i] = count++;
+            }
         }
     }
 }
 
 void set_alldead(MTYPE *mat, const unsigned long n){
+    // note: this function does not act on the ghost cells (boundaries)
     for(unsigned int y=0; y<n; ++y){
         for(unsigned int x=0; x<n; ++x){
-            unsigned long i = y*n + x;
+            unsigned long i = (y+1)*(n+2) + (x+1);
             mat[i] = 0;
         }
     }
 }
 
+void set_everything(MTYPE *mat, const unsigned long n, MTYPE val){
+    // set cells and ghost cells
+    for(unsigned int y=0; y<n+2; ++y){
+        for(unsigned int x=0; x<n+2; ++x){
+            unsigned long i = y*(n+2) + x;
+            mat[i] = val;
+        }
+    }
+}
+
 void set_cell(MTYPE *mat, const unsigned long n, const int x, const int y, MTYPE val){
-    unsigned long i = y*n + x;
+    // the boundaries are ghost cells
+    unsigned long i = (y+1)*(n+2) + (x+1);
     mat[i] = val;
 }
 
 unsigned long count_living_cells(MTYPE *mat, const unsigned long n){
     unsigned long c = 0;
+    // note: this function does not act on the boundaries.
     for(unsigned int y=0; y<n; ++y){
         for(unsigned int x=0; x<n; ++x){
-            if(x<y){
-                unsigned long i = y*n + x;
+            if(x <= y){
+                unsigned long i = (y+1)*(n+2) + (x+1);
                 c += mat[i];
             }
         }
@@ -113,15 +120,40 @@ unsigned long count_living_cells(MTYPE *mat, const unsigned long n){
     return c;
 }
 
-
-int print_dmat(unsigned int limit, unsigned int n, unsigned long msize, MTYPE *dmat, const char *msg){
-    MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
-    cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
-    if(n <= limit){
-        print_matrix(hmat, n, msg);
-        getchar();
+void print_ghost_matrix(MTYPE *mat, const int n, const char *msg){
+    printf("[%s]:\n", msg);
+	for(int i=0; i<n+2; i++){
+	    for(int j=0; j<n+2; j++){
+            long w = i*(n+2) + j;
+            if( i >= j && i<n+1 && j>0 ){
+                //if(mat[w] == 1){
+                //    printf("1 ");
+                //}
+                //else{
+                //    printf("  ");
+                //}
+                if(mat[w] != 0){
+                    printf("%i ", mat[w]);
+                }
+                else{
+                    printf("  ", mat[w]);
+                }
+            }
+            else{
+                printf("%i ", mat[w]);
+            }
+        }
+        printf("\n");
     }
-    free(hmat);
+}
+
+int print_dmat(int PLIMIT, unsigned int n, unsigned long msize, MTYPE *dmat, const char *msg){
+    if(n <= PLIMIT){
+        MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
+        cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
+        print_ghost_matrix(hmat, n, msg);
+        free(hmat);
+    }
     return 1;
 }
 
@@ -135,28 +167,15 @@ void last_cuda_error(const char *msg){
 }
 
 
-void fill_random(DTYPE *array, int n){
-	for(int i=0; i<n; i++){
-        array[i] = ((double)rand()/RAND_MAX) <= 0.5 ? 1 : 0;
-    }
-} 
-
-
 void init(unsigned int n, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dmat1, MTYPE **dmat2, unsigned long *msize, unsigned long *trisize, double DENSITY){
-	*msize = n*n;
-    *trisize = n*(n-1)/2;
-	
-	*hdata = (DTYPE*)malloc(sizeof(DTYPE)*n);
+    // define ghost n, gn, for the (n+2)*(n+2) space for the ghost cells
+	*msize = (n+2)*(n+2);
+
 	*hmat = (MTYPE*)malloc(sizeof(MTYPE)*(*msize));
-
-	fill_random(*hdata, n);
-	cudaMalloc((void **) ddata, sizeof(DTYPE)*n);
-    last_cuda_error("init: cudaMalloc ddata");
-	cudaMemcpy(*ddata, *hdata, sizeof(DTYPE)*n, cudaMemcpyHostToDevice);
-    last_cuda_error("init end:memcpy hdata->ddata");
-
-
+    set_everything(*hmat, n, 0);
     set_randconfig(*hmat, n, DENSITY);
+    //set_ids(*hmat, n);
+
     /*
     set_alldead(*hmat, n);
     set_cell(*hmat, n, 3, 6, 1);
@@ -174,18 +193,17 @@ void init(unsigned int n, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dm
 
 	cudaMalloc((void **) dmat1, sizeof(MTYPE)*(*msize));
 	cudaMalloc((void **) dmat2, sizeof(MTYPE)*(*msize));
-    last_cuda_error("init: cudaMalloc dmat");
+    last_cuda_error("init: cudaMalloc dmat1 dmat2");
     cudaMemcpy(*dmat1, *hmat, sizeof(MTYPE)*(*msize), cudaMemcpyHostToDevice);
-    last_cuda_error("init end:memcpy hmat->dmat");
+    last_cuda_error("init:memcpy hmat->dmat1");
 
 #ifdef DEBUG
-	printf("2-simplex: n=%i  msize=%i (%f MBytes -> 2 lattices)\n", n, *msize, 2.0f * (float)sizeof(MTYPE)*(*msize)/(1024*1024));
+	printf("2-simplex: n=%i  msize=%lu (%f MBytes -> 2 lattices)\n", n, *msize, 2.0f * (float)sizeof(MTYPE)*(*msize)/(1024*1024));
     if(n <= PRINTLIMIT){
-        print_matrix(*hmat, n, "host matrix");
+        print_ghost_matrix(*hmat, n, "\nhost ghost-matrix initialized");
     }
 #endif
 }
-
 
 void gen_lambda_pspace(const unsigned int n, dim3 &block, dim3 &grid){
     block = dim3(BSIZE2D, BSIZE2D, 1); 
@@ -323,7 +341,7 @@ void print_grids_offsets(unsigned int numrec, dim3 *grids, dim3 block, unsigned 
 
 template<typename Lambda>
 double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
-        unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat1,
+        unsigned long msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat1,
         MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
 	cudaEvent_t start, stop;
 	cudaEventCreate(&start);
@@ -337,29 +355,53 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     printf("warmup.........................."); fflush(stdout);
 #endif
 	for(int i=0; i<REPEATS; i++){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            //printf("result pong\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat1, "ghost update dmat1");
+            //getchar();
+        #endif
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
-        printf("result ping\n");
-        print_dmat(PRINTLIMIT, n, msize, dmat2, "PING");
+            printf("result ping\n");
+            print_dmat(PRINTLIMIT, n, msize, dmat2, "PING dmat1 -> dmat2");
+            getchar();
+        #endif
+
+
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            //printf("result pong\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat2, "ghost update dmat2");
+            //getchar();
         #endif
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
-        printf("result pong\n");
-        print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+            printf("result pong\n");
+            print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG  dmat2 -> dmat1");
+            getchar();
         #endif
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG  dmat2 -> dmat1");
     printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
 #endif
     float time = 0.0;
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);	
+        cudaDeviceSynchronize();
+
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
         kernel_test<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
@@ -386,9 +428,10 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
 
 
 
+
 template<typename Lambda>
 double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
-        unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata,
+        unsigned int n, unsigned long msize, unsigned int trisize, DTYPE *ddata,
         MTYPE *dmat1, MTYPE *dmat2, Lambda map, 
         unsigned int aux1, unsigned int aux2, unsigned int aux3){
 	cudaEvent_t start, stop;
@@ -403,29 +446,39 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     printf("warmup.........................."); fflush(stdout);
 #endif
 	for(int i=0; i<REPEATS; i++){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
-        printf("result ping\n");
-        print_dmat(PRINTLIMIT, n, msize, dmat2, "PING");
+            //printf("result ping\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat2, "PING");
         #endif
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
-        printf("result pong\n");
-        print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+            //printf("result pong\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
         #endif
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
     printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
 #endif
     float time = 0.0;
     // measure running time
     cudaEventRecord(start, 0);	
     for(int k=0; k<REPEATS; k++){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);	
+        cudaDeviceSynchronize();
+
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
         kernel_test_rectangle<<< grid, block >>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);	
         cudaDeviceSynchronize();
@@ -444,8 +497,9 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     return time;
 }
 
+
 template<typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, Lambda map){
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, Lambda map){
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -469,28 +523,34 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     printf("warmup.........................."); fflush(stdout);
 #endif
     for(int k=0; k<REPEATS; k++){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
 	    for(int i=0; i<numrec; ++i){
             kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat1, dmat2, map, auxs1[i], auxs2[i], offsets[i]);
-            cudaDeviceSynchronize();
         }
+        cudaDeviceSynchronize();
         #ifdef DEBUG
-            printf("result ping\n");
-            print_dmat(PRINTLIMIT, n, msize, dmat2, "PING");
+            //printf("result ping\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat2, "PING");
+            //getchar();
         #endif
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
 	    for(int i=0; i<numrec; ++i){
             kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat2, dmat1, map, auxs1[i], auxs2[i], offsets[i]);
-            cudaDeviceSynchronize();
         }
+        cudaDeviceSynchronize();
         #ifdef DEBUG
-            printf("result pong\n");
-            print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+            //printf("result pong\n");
+            //print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+            //getchar();
         #endif
         cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
     printf("done\n"); fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
     printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
 #endif
     // measure running time
@@ -499,10 +559,13 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     //create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
     #pragma loop unroll
     for(int k=0; k<REPEATS; ++k){
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
 	    for(int i=0; i<numrec; ++i){
 	    //for(int i=numrec-1; i>=0; --i){
             kernel_test<<< grids[i], block, 0, streams[i] >>>(n, msize, ddata, dmat1, dmat2, map, auxs1[i], auxs2[i], offsets[i]);
         }
+        kernel_update_ghosts<<< (n+BSIZE1D-1)/BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
 	    for(int i=0; i<numrec; ++i){
 	    //for(int i=numrec-1; i>=0; --i){
@@ -526,17 +589,5 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 
 int verify_result(unsigned int n, const unsigned long msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat){
     return 1;
-    /*
-    printf("verifying......................."); fflush(stdout);
-    float epsilon = 0.0001f;
-    cudaMemcpy(hdata, ddata, sizeof(DTYPE)*n, cudaMemcpyDeviceToHost);
-    cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
-    for(int i=0; i<n; ++i){
-        for(int j=0; j<=i; ++j){
-        }
-    }
-    printf("ok\n"); fflush(stdout);
-    return 1;
-    */
 }
 #endif

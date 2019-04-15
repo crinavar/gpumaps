@@ -35,7 +35,7 @@ double bbox(const unsigned int n, const unsigned int REPEATS, double DENSITY){
 	init(n, &hdata, &hmat, &ddata, &dmat1, &dmat2, &msize, &trisize, DENSITY);	
     gen_bbox_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
+    auto map = [] __device__ (const unsigned int n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
         if(blockIdx.x > blockIdx.y){
             return (int2){-1,-2};
         }
@@ -64,7 +64,7 @@ double lambda(const unsigned int n, const unsigned int REPEATS, double DENSITY){
 	init(n, &hdata, &hmat, &ddata, &dmat1, &dmat2, &msize, &trisize, DENSITY);	
     gen_lambda_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
+    auto map = [] __device__ (const unsigned int n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
         int2 p;
         unsigned int bc = blockIdx.x + blockIdx.y*gridDim.x;
         float arg = __fmaf_rn(2.0f, (float)bc, 0.25f);
@@ -98,22 +98,20 @@ double rectangle(const unsigned int n, const unsigned int REPEATS, double DENSIT
     dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat1, &dmat2, &msize, &trisize, DENSITY);	
     gen_rectangle_pspace(n, block, grid);
+#ifdef DEBUG
+    printf("grid(%i, %i, %i)   block(%i, %i, %i)\n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
+#endif
     // formulate map
-    auto map = [] __device__ (const unsigned int n, const unsigned int msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
+    auto map = [] __device__ (const unsigned int n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
         int2 p;
         p.y = blockIdx.y * blockDim.y + threadIdx.y;
         p.x = blockIdx.x * blockDim.x + threadIdx.x;
-        if(p.y >= n+1 || p.x >= n/2){
-            p = (int2){1,0};
+        if( p.x >= p.y ){
+            p.x = n - p.x -1;
+            p.y = n - p.y -1;
         }
         else{
-            if( p.x >= p.y ){
-                p.x = n - p.x -1;
-                p.y = n - p.y -1;
-            }
-            else{
-                p.y = p.y-1;
-            }
+            p.y = p.y-1;
         }
         return p;
     };
@@ -148,10 +146,33 @@ double hadouken(const unsigned long n, const unsigned int REPEATS, double DENSIT
     // trapezoid map
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
         // (1) optimzized version: just arithmetic and bit-level operations
+        
         const int h    = WORDLEN - __clz(blockIdx.y+1);
         const int qb   = blockIdx.x & (MAX_UINT << h);
         const int k = (aux1 - (int)blockIdx.y) >> 31;
         return (int2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+        
+
+        // (2) normal version: arithmetic, bit and logical operations
+        /*
+        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+        const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+        const unsigned int k = (int)blockIdx.y - aux1 > 0? 1 : 0;
+        return (int2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
+        */
+
+
+        // (3) simple version: no programming tricks
+        /*
+        if( aux1 >= blockIdx.y ){
+            const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+            const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+            return (int2){ aux3 + (blockIdx.x + qb)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+        }
+        else{
+            return (int2){ aux3 + (blockIdx.x + gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2)*blockDim.y + threadIdx.y };
+        }
+        */
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat1, dmat2, map);

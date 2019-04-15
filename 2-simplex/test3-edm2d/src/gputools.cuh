@@ -450,7 +450,9 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 }
 
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
-    printf("verifying......................."); fflush(stdout);
+    #ifdef DEBUG
+        printf("verifying......................."); fflush(stdout);
+    #endif
     float epsilon = 0.0001f;
     cudaMemcpy(hdata, ddata, sizeof(DTYPE)*n, cudaMemcpyDeviceToHost);
     cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
@@ -460,12 +462,16 @@ int verify_result(unsigned int n, const unsigned int checkval, const unsigned lo
             DTYPE b = hdata[j];
             float val = sqrtf( (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y) );
             if(fabs(val - hmat[i*n + j]) > epsilon){
-                fprintf(stderr, "error at [i, j] = [%i, %i], edm2d\nCPU %f\nGPU %f\n", i, j, val, hmat[i*n+j]);
+                #ifdef DEBUG
+                    fprintf(stderr, "error at [i, j] = [%i, %i], edm2d\nCPU %f\nGPU %f\n", i, j, val, hmat[i*n+j]);
+                #endif
                 return 0;
             }
         }
     }
-    printf("ok\n"); fflush(stdout);
+    #ifdef DEBUG
+        printf("ok\n"); fflush(stdout);
+    #endif
     return 1;
 }
 #endif
