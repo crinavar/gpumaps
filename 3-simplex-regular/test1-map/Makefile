@@ -7,35 +7,25 @@ COMPILER_DEFINES=-D${DEBUG} -D${VERIFY} -DBSIZE3D=${BSIZE3D}
 NVCCFLAGS=${COMPILER_DEFINES} -arch sm_35 --std=c++11 --expt-extended-lambda 
 NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 -arch sm_35 --std=c++11 --expt-extended-lambda --ptxas-options=-v
 PRECFLAGS=-prec-sqrt=false
-BIN=test0-map
+BIN=bin/test0-map
+SRC=src
+OBJ=obj
 CFLAGS=${COMPILER_DEFINES} --std=c++11 
 
 all: gpudummy.o main.o
-	nvcc ${NVCCFLAGS} *.o -o ${BIN}
-	rm main.o gpudummy.o
+	nvcc ${NVCCFLAGS} ${OBJ}/*.o -o ${BIN}
+	rm ${OBJ}/main.o ${OBJ}/gpudummy.o
 
 gpudummy.o:
-	nvcc -c ${NVCCFLAGS} gpudummy.cu 
+	nvcc -c ${NVCCFLAGS} ${SRC}/gpudummy.cu -o ${OBJ}/gpudummy.o
 main.o:
-	g++ ${CFLAGS} -c main.cpp -lm
-
-non-opt:
-	nvcc -c ${NVCCFLAGS2} gpudummy.cu 
-	g++ ${CFLAGS} -c main.cpp -lm
-	nvcc ${NVCCFLAGS2} *.o -o prog
-	rm main.o gpudummy.o
-
-non-opt-ptx:
-	nvcc -c -ptx ${NVCCFLAGS2} gpudummy.cu 
-	g++ ${CFLAGS} -c main.cpp -lm
-	nvcc -ptx ${NVCCFLAGS2} *.o -o prog
-	rm main.o gpudummy.o
+	g++ ${CFLAGS} -c ${SRC}/main.cpp -lm -o ${OBJ}/main.o
 
 ptx:
-	nvcc -c -ptx ${NVCCFLAGS} gpudummy.cu 
-	g++ ${CFLAGS} -c main.cpp -lm
-	nvcc -ptx ${NVCCFLAGS} *.o -o prog
+	nvcc -c -ptx ${NVCCFLAGS} ${SRC}/gpudummy.cu 
+	g++ ${CFLAGS} -c ${SRC}/main.cpp -lm
+	nvcc -ptx ${NVCCFLAGS} *.o -o ${BIN}
 	rm main.o gpudummy.o
 
 clean:
-	rm prog *.o
+	rm ${BIN}
