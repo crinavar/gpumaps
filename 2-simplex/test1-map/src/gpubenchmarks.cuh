@@ -198,4 +198,58 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
 #endif
 }
 
+double hadouken_tc(const unsigned long n, const unsigned int REPEATS){
+#ifdef DEBUG
+    printf("[Hadouken_tc]\n");
+#endif
+    DTYPE *hdata, *ddata;
+    MTYPE *hmat, *dmat;
+    unsigned long msize, trisize;
+    dim3 block(BSIZE2D, BSIZE2D);
+    init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
+#ifdef DEBUG
+    printf("gen_hadouken_pspace(%i, ...)\n", n);
+#endif
+    // trapezoid map
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
+        // (1) optimzized version: just arithmetic and bit-level operations
+        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+        const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
+        const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
+        return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+
+        // (2) normal version: arithmetic, bit and logical operations
+        /*
+        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+        const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+        const unsigned int k = (int)blockIdx.y - aux1 > 0? 1 : 0;
+        return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
+        */
+
+
+        // (3) simple version: no programming tricks
+        /*
+        if( aux1 >= blockIdx.y ){
+            const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
+            const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
+            return (uint2){ aux3 + (blockIdx.x + qb)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+        }
+        else{
+            return (uint2){ aux3 + (blockIdx.x + gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2)*blockDim.y + threadIdx.y };
+        }
+        */
+    };
+    // benchmark
+    double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
+    double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0,0,0), block);
+    cudaFree(ddata);
+    cudaFree(dmat);
+    free(hdata); 
+    free(hmat);
+#ifdef DEBUG
+    return time;
+#else
+    return time*check;
+#endif
+}
 #endif
