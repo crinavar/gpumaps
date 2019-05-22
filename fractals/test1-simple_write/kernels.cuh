@@ -57,7 +57,6 @@ __global__ void kernel_write_char(char *E, const unsigned int n, const unsigned 
 template<typename Lambda>
 __global__ void kernel_write_char_lambda(char *E, const unsigned int n, const unsigned int nb, const unsigned int rb, const char c, const int WSIZE, Lambda map){
     auto p = map(nb, rb, WSIZE);
-    //printf("\n(thread %i %i %i)= d(%i, %i, %i) = (%f, %f, %f, %f)\n", threadIdx.x, threadIdx.y, threadIdx.z, p.x, p.y, p.z, d[p.x].x, d[p.x].y, d[p.x].z, d[p.x].w);
     if( p.x < n && p.y < n && (p.x & (n-1-p.y)) == 0 ){
         E[p.y*n + p.x] = c;
     }

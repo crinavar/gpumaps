@@ -1,14 +1,5 @@
-#ifndef TOOLS_H
-#define TOOLS_H
-
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true){
-    if (code != cudaSuccess){
-        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort) 
-            exit(code);
-    }
-}
+#include <stdio.h>
+#include "gputools.cuh"
 
 template <typename T>
 void initmat(T *E, unsigned long n2, T c){
@@ -52,5 +43,25 @@ int verify(T *E, int n, int c){
     }
     return 1;
 }
+void last_cuda_error(const char *msg){
+	cudaError_t error = cudaGetLastError();
+	if(error != cudaSuccess){
+		// print the CUDA error message and exit
+		printf("[%s]: CUDA error: %s\n", msg, cudaGetErrorString(error));
+		exit(-1);
+	}
+}
 
-#endif
+void print_gpu_specs(int dev){
+    cudaDeviceProp prop;
+    cudaGetDeviceProperties(&prop, dev);
+    printf("Device Number: %d\n", dev);
+    printf("  Device name:                  %s\n", prop.name);
+    printf("  Multiprocessor Count:         %d\n", prop.multiProcessorCount);
+    printf("  Concurrent Kernels:           %d\n", prop.concurrentKernels);
+    printf("  Memory Clock Rate (KHz):      %d\n", prop.memoryClockRate);
+    printf("  Memory Bus Width (bits):      %d\n", prop.memoryBusWidth);
+    printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
+}
+
+

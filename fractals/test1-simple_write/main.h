@@ -7,10 +7,9 @@ void write_result(const char *filename, statistics stat, int b, int r){
         fprintf(stderr, "error writing to file %s\n", filename);
         exit(EXIT_FAILURE);
     }
-    fprintf(fw, "%i    %i    %i    %g    %g    %g    %g    %g    %g    %g    %f\n", 
+    fprintf(fw, "%i    %i    %i    %g    %g    %g    %g    %f\n", 
             (int)pow(2,r), r, b,
-            stat.mean1, stat.variance1, stat.stdev1, stat.sterr1, 
-            stat.mean2, stat.variance2, stat.stdev2, stat.sterr2);
+            stat.mean, stat.variance, stat.stdev, stat.sterr);
     fflush(fw);
     fclose(fw);
 }
