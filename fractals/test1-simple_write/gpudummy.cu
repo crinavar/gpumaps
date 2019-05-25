@@ -210,11 +210,6 @@ RunningStat* lambda_tc(char* M, unsigned long n, unsigned long nb, unsigned long
         int index = lid;
 
         if (lid < 32) {
-            //Has to be resetted to 0. Latter kernel calls were getting weird values
-            #pragma unroll
-            for (int i=0; i<2; i++){
-                matb[i*32 + lid] = 0;
-            }
             if (lid < rb){
                 mata[lid] = 1 << lid;
             }

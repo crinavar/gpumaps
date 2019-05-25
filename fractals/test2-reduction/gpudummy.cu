@@ -219,9 +219,9 @@ RunningStat* lambda_tc(MTYPE* M, MTYPE* res, unsigned long n, unsigned long nb, 
 
         if (lid < 32) {
             //Has to be resetted to 0. Latter kernel calls were getting weird values
-            #pragma unroll
+	    #pragma unroll
             for (int i=0; i<2; i++){
-                matb[i*32 + lid] = 0;
+                matb[lid] = 0;
             }
             if (lid < rb){
                 mata[lid] = 1 << lid;
@@ -303,7 +303,6 @@ RunningStat* lambda_tc_optimized(MTYPE* M, MTYPE* res, unsigned long n, unsigned
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
         wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
 
-        wmma::fill_fragment(c_fragment, 0.0f);
 
         auto beta = [] __device__ (const int nb, uint2 bids, const int u){
             int b = (int)((bids.x*(u & 1) + bids.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
@@ -330,6 +329,8 @@ RunningStat* lambda_tc_optimized(MTYPE* M, MTYPE* res, unsigned long n, unsigned
 
         __syncthreads();
         if (index < 32) {
+            wmma::fill_fragment(c_fragment, 0.0f);
+
             wmma::load_matrix_sync(a_fragment, &mata[0], 16);
         
             wmma::load_matrix_sync(b_fragment, &matb[0], 16);

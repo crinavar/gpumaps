@@ -82,11 +82,16 @@ __device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned long n,
 }
 template<typename Lambda>
 __global__ void kernel_test(const unsigned long n, const unsigned long msize, const unsigned long nb, const unsigned long rb, MTYPE *data, MTYPE *dmat1, MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
-    __shared__ MTYPE auxs[6455];
+
+    __shared__ half mata[256]; 
+    __shared__ half matb[256];
+    __shared__ float matc[256]; 
+
     __shared__ MTYPE cache[CSPACE];
-    auto p = map(nb, rb, WARPSIZE);
+
+    auto p = map(nb, rb, WARPSIZE, mata, matb, matc);
     load_cache(cache, dmat1, n, threadIdx, p);
-    if(p.x <= n && p.y <= n && (p.x & (n-1-p.y)) == 0){
+    if((p.y != 0xFFFFFFFF || p.x != 0xFFFFFFFF) && p.x <= n && p.y <= n && (p.x & (n-1-p.y)) == 0){
         work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
         //work_nocache(data, dmat1, dmat2, p, n);
     }

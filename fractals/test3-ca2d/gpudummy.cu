@@ -93,6 +93,8 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
     stat.stdev = r->StandardDeviation();
     stat.sterr = r->StandardDeviation()/((double)sqrt(r->NumDataValues()));
 
+    printf("%f\n", stat.mean);
+
     free(r);
     return stat;
 }
@@ -107,7 +109,7 @@ RunningStat* boundingBox(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long
         g = dim3(pow(2,rb), pow(2,rb), 1);
     };
 
-    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
         uint2 m;
         m.x = blockIdx.x*blockDim.x + threadIdx.x;
         m.y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -130,7 +132,7 @@ RunningStat* lambda(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, u
     };
 
     // lambda map
-    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
         __shared__ uint2 m;
         auto beta = [] __device__ (const int nb, const uint2 w, const int u){
             int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
@@ -177,10 +179,7 @@ RunningStat* lambda_tc(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n
 
     // Tensor core lambda map
     // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
-    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
-        __shared__ MTYPE auxs[455];
-        __shared__ half mata[256]; 
-        __shared__ half matb[256];
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
         
         //Has to be declared after the matrices above to avoid 8-byte shifting
         __shared__ uint2 m;
@@ -263,11 +262,7 @@ RunningStat* lambda_tc_optimized(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsig
 
     // Tensor core lambda map
     // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
-    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
-
-        __shared__ half mata[256]; 
-        __shared__ half matb[256];
-        __shared__ float matc[256];
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
         
         //Has to be declared after the matrices above to avoid 8-byte shifting
         uint2 m;
