@@ -30,7 +30,7 @@ do
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
         COMPILE=`make BSIZE1D=${LB} BSIZE2D=${BS} BPOWER=${BP} RLEVEL=${N}`
-        echo "Compiling with BSIZE2D=$BS"
+        echo "Compiling with BSIZE2D=$BS RLEVEL=$N"
         echo ${COMPILE}
         echo "DEV=${DEV}  N=${N} B=${BP} R=${N}"
         echo -n "${N}   ${BP}    " >> data/${OUTFILE}_B${BP}_DEV${DEV}.dat
@@ -39,7 +39,7 @@ do
             M=0
             S=0
             # Chosen MAP
-            echo "./${BINARY} ${DEV} ${R} ${q} 1"
+            echo "./${BINARY} ${DEV} ${R} ${q} 0.5 1"
             echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
             for k in `seq 1 ${SAMPLES}`;
             do

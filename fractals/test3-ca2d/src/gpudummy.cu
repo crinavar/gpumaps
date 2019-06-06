@@ -52,16 +52,16 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
 #endif
 
     switch (method){
-        case 0:
+        case 1:
             r = boundingBox(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
-        case 1:
+        case 2:
             r = lambda(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
-        case 2:
+        case 3:
             r = lambda_tc(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
-        case 3:
+        case 4:
             r = lambda_tc_optimized(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
         default:
