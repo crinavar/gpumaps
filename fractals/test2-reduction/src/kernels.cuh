@@ -43,9 +43,9 @@ __global__ void kernel_block_reduction(MTYPE *E, double* res, const unsigned int
 
     if (p.y == 0xFFFFFFFF || p.x == 0xFFFFFFFF) //fix
         shmem[tid] = 0;
-    else
+    else{
         shmem[tid] = *(E + p.y*n + p.x);
-
+    }
     __syncthreads();
     val = warp_reduce1D(shmem[tid], WSIZE);
 

@@ -219,7 +219,6 @@ RunningStat* lambda_tc(MTYPE* M, double* res, unsigned long n, unsigned long nb,
         int index = lid;
 
         if (lid < 32) {
-            //Has to be resetted to 0. Latter kernel calls were getting weird values
             if (lid < rb){
                 mata[lid] = 1 << lid;
             }
@@ -237,6 +236,7 @@ RunningStat* lambda_tc(MTYPE* M, double* res, unsigned long n, unsigned long nb,
 
         __syncthreads();
         if (index < 32) {
+            wmma::fill_fragment(c_fragment, 0.0f);
             wmma::load_matrix_sync(a_fragment, &mata[0], 16);
         
             wmma::load_matrix_sync(b_fragment, &matb[0], 16);
@@ -374,6 +374,7 @@ RunningStat* performLoad(MTYPE *M, double* res, unsigned long n, unsigned long n
 #endif
 
     kernel_write_lambda<<< grid, block >>>(M, n, nb, rb, 1, WSIZE, map);
+    last_cuda_error("writeError");
 
     n = max(n, (long)block.x);
 
@@ -383,7 +384,7 @@ RunningStat* performLoad(MTYPE *M, double* res, unsigned long n, unsigned long n
             kernel_block_reduction<<< grid, block >>>(M, res, n, nb, rb, WSIZE, map);
             cudaDeviceSynchronize();
         }
-        last_cuda_error("lastError");
+        last_cuda_error("reuceError");
         cudaDeviceSynchronize();
         last_cuda_error("cudaDeviceSynchronize");
         cudaEventRecord(stop);
