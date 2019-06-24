@@ -212,11 +212,16 @@ double hadouken_tc(const unsigned long n, const unsigned int REPEATS){
 #endif
     // trapezoid map
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
+        // TODO
+        // program tensor core map assuming 32x32 block (split un groups of four 16x16 MMAs)
+
         // (1) optimzized version: just arithmetic and bit-level operations
+        /*
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
         const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
         return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+        */
 
         // (2) normal version: arithmetic, bit and logical operations
         /*
