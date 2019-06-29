@@ -79,9 +79,22 @@ statistics gpudummy(unsigned int method, unsigned int repeats){
         case 4:
             r = lambda_tc_optimized(Ec_d, res_d, n, nb, rb);
             break;
+        case 5:
+            r = lambda_tc2(Ec_d, res_d, n, nb, rb);
+            break;
+        case 6:
+            r = lambda_tc_optimized2(Ec_d, res_d, n, nb, rb);
+            break;
         default:
-            printf("Method can only take values 0, 1, 2 or 3\n");
+            printf("Method can only take values 1, 2, 3, 4, 5 or 6\n");
             exit(2);
+    }
+    if (r == nullptr){
+        stat.mean = 0;
+        stat.variance = 0;
+        stat.stdev = 0;
+        stat.sterr = 0;
+        return stat;
     }
     cudaMemcpy(Ec_h, Ec_d, sizeof(MTYPE)*n*n, cudaMemcpyDeviceToHost);
     cudaMemcpy(res_h, res_d, sizeof(double), cudaMemcpyDeviceToHost);
@@ -258,18 +271,88 @@ RunningStat* lambda_tc(MTYPE* M, double* res, unsigned long n, unsigned long nb,
     return performLoad(M, res, n, nb, rb, block, grid, lambdamap_tc );
 }
 
+RunningStat* lambda_tc2(MTYPE* M, double *res, unsigned long n, unsigned long nb, unsigned long rb){
+
+    dim3 block, grid;
+
+    if (BSIZE2D != 16){
+#ifdef DEBUG
+        printf("This method requires a 16x16 block.\n");
+#endif
+        return nullptr;
+    }
+
+    // pspace: orthotope for lambda
+    auto psgen = [] (unsigned long rb, int BSIZE, dim3 &b, dim3 &g){ 
+        b = dim3(BSIZE, BSIZE, 1);
+        g = dim3((int)pow(3, ceil(rb/2.0)), (int)pow(3, floor(rb/2.0)), 1); 
+    };
+
+    // Tensor core lambda map
+    // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
+
+        __shared__ half mata[256]; 
+        __shared__ half matb[512];
+        __shared__ float matc[512];
+        
+        //Has to be declared after the matrices above to avoid 8-byte shifting
+        //__shared__ uint2 m;
+
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+
+        auto beta = [] __device__ (const int nb, const int u){
+            int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return b;
+        };
+        
+        int lid = threadIdx.x + threadIdx.y*blockDim.x;
+        int lid2 = lid + 256;
+
+        char col = lid & 15;
+        char wid = (lid >> 5);
+
+
+        if (col < rb){
+            mata[lid] = 1 << (col+4);
+            
+            char b = beta(nb, col+1);
+            matb[lid] = (b >> 1);
+            matb[lid2] = (b-(b >> 1));
+        } else {
+            mata[lid] = 0;
+        }
+
+        matc[lid]  = threadIdx.x;
+        matc[lid2] = threadIdx.y;
+        __syncthreads();
+
+        if (wid < 2) {
+            int wid2 = wid << 8;
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb[wid2], 16);
+            wmma::load_matrix_sync(c_fragment, &matc[wid2], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+            wmma::store_matrix_sync(&matc[wid2], c_fragment, 16, wmma::mem_row_major);
+        } 
+        __syncthreads();
+
+        return (uint2){matc[lid], matc[lid2]};
+    };
+
+    psgen(rb, 1<<BPOWER, block, grid);
+
+    return performLoad(M, res, n, nb, rb, block, grid, lambdamap_tc );
+}
+
 RunningStat* lambda_tc_optimized(MTYPE* M, double* res, unsigned long n, unsigned long nb, unsigned long rb){
 
     dim3 block, grid;
 
     rb++;
-
-    if (BSIZE1D < 32){
-#ifdef DEBUG
-        printf("Blocksize needs to be at least 32 to use warp sync mma operations.\n");
-#endif
-        return nullptr;
-    }
 
     if (BPOWER != 5){
 #ifdef DEBUG
@@ -347,6 +430,151 @@ RunningStat* lambda_tc_optimized(MTYPE* M, double* res, unsigned long n, unsigne
         m = (uint2){(int)(matc[ss]), (int)(matc[ss+1])};
 
         return (uint2){(m.x << 4) + (threadIdx.x & 15), (m.y << 4) + (threadIdx.y & 15)};
+    };
+
+    psgen(rb, 1<<BPOWER, block, grid);
+
+    return performLoad(M, res, n, nb, rb, block, grid, lambdamap_tc );
+}
+
+RunningStat* lambda_tc_optimized2(MTYPE* M, double *res, unsigned long n, unsigned long nb, unsigned long rb){
+
+    dim3 block, grid;
+
+
+    if (BPOWER != 5){
+#ifdef DEBUG
+        printf("BPOWER has to be 5 to use this method.\n");
+#endif
+        return nullptr;
+    }
+
+    // pspace: orthotope for lambda on the thing
+    auto psgen = [] (unsigned long rb, int BSIZE, dim3 &b, dim3 &g){ 
+        b = dim3(BSIZE, BSIZE, 1);
+        g = dim3( (int)ceil(pow(3, ceil(rb/2.0))), (int)ceil(pow(3, floor(rb/2.0))), 1); 
+    };
+
+    // Tensor core lambda map
+    // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
+
+        __shared__ half mata[256]; 
+        __shared__ half matb_x[256];
+        __shared__ half matb_y[256];    //   256   256   256   256   
+        __shared__ float matc_x[1024];    // |-----|-----|-----|-----|
+        __shared__ float matc_y[1024];    // |-----|-----|-----|-----|
+                                        //    0     1     2     3
+        
+        //Strange behaviour when fragments are shared, the entire iteration reads the same value
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+
+        auto beta = [] __device__ (const int nb, const int u){
+            int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return b;
+        };
+        
+        int index = threadIdx.x + threadIdx.y*blockDim.x;
+        int lid = index;
+        
+        char col = index & 15;
+
+        __syncthreads();
+        if (lid < 256) {
+            if (col < rb){
+                mata[lid] = 1 << (col+5);
+            } else {
+                mata[lid] = 0;
+            }
+        } else if (lid < 512){
+            lid -= 256;
+            char b = beta(nb, col+1);
+            matb_x[lid] = (b >> 1);
+            matb_y[lid] = (b-(b >> 1));
+        } 
+
+        __syncthreads();
+        matc_x[index] = threadIdx.x;
+        matc_y[index] = threadIdx.y;
+
+        __syncthreads();
+
+        if (index < 32) {
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_x[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_x[0], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_x[0], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 64){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_x[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_x[256], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_x[256], c_fragment, 16, wmma::mem_row_major);
+        
+        } else if (index < 96){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_x[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_x[512], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_x[512], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 128){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_x[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_x[768], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_x[768], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 160){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_y[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_y[0], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_y[0], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 192){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_y[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_y[256], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+            wmma::store_matrix_sync(&matc_y[256], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 224){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_y[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_y[512], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_y[512], c_fragment, 16, wmma::mem_row_major);
+
+        } else if (index < 256){
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+            wmma::load_matrix_sync(b_fragment, &matb_y[0], 16);
+            wmma::load_matrix_sync(c_fragment, &matc_y[768], 16, wmma::mem_row_major);
+
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc_y[768], c_fragment, 16, wmma::mem_row_major);
+        }
+        __syncthreads();
+
+        return (uint2){matc_x[index], matc_y[index]};
     };
 
     psgen(rb, 1<<BPOWER, block, grid);

@@ -14,7 +14,7 @@
 #define FL 2
 #define FU 2
 
-#define CLEN ((BSIZE2D)+2)
+#define CLEN ((BSIZE2D2)+2)
 #define CSPACE (CLEN*CLEN)
 
 
@@ -32,11 +32,11 @@ __device__ __inline__ void set_halo(MTYPE *cache, MTYPE *mat, unsigned long N, u
         cache[CINDEX(lp.x - 1, lp.y)]      = mat[ GINDEX(p.x-1, p.y, N) ];
     }
     // right side
-    if(lp.x == BSIZE2D-1){
+    if(lp.x == BSIZE2D2-1){
         cache[CINDEX(lp.x + 1, lp.y)]      = mat[ GINDEX(p.x+1, p.y, N) ];
     }
     // bottom side
-    if(lp.y == BSIZE2D-1){
+    if(lp.y == BSIZE2D2-1){
         cache[CINDEX(lp.x, lp.y + 1)]      = mat[ GINDEX(p.x, p.y+1, N) ];
     }
     // top side
@@ -48,11 +48,11 @@ __device__ __inline__ void set_halo(MTYPE *cache, MTYPE *mat, unsigned long N, u
         // top-left
         cache[CINDEX(-1, -1)]           = mat[ GINDEX(p.x-1, p.y-1, N) ];
         // top-right
-        cache[CINDEX(BSIZE2D, -1)]      = p.x + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y - 1, N) ] : 0;
+        cache[CINDEX(BSIZE2D2, -1)]      = p.x + BSIZE2D2 <= N ? mat[ GINDEX(p.x + BSIZE2D2, p.y - 1, N) ] : 0;
         // bot-lefj
-        cache[CINDEX(-1, BSIZE2D)]      = p.y + BSIZE2D <= N ? mat[ GINDEX(p.x-1, p.y + (BSIZE2D), N) ] : 0;
+        cache[CINDEX(-1, BSIZE2D2)]      = p.y + BSIZE2D2 <= N ? mat[ GINDEX(p.x-1, p.y + (BSIZE2D2), N) ] : 0;
         // bot-right
-        cache[CINDEX(BSIZE2D, BSIZE2D)] = p.x + BSIZE2D <= N && p.y + BSIZE2D <= N ? mat[ GINDEX(p.x + BSIZE2D, p.y + BSIZE2D, N) ] : 0;
+        cache[CINDEX(BSIZE2D2, BSIZE2D2)] = p.x + BSIZE2D2 <= N && p.y + BSIZE2D2 <= N ? mat[ GINDEX(p.x + BSIZE2D2, p.y + BSIZE2D2, N) ] : 0;
     }
 }
 
@@ -78,27 +78,27 @@ __device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned long n,
         set_halo(cache, mat, n, lp, p);
     }
     // loading the cache's halo
-    __syncthreads();
 }
 template<typename Lambda>
 __global__ void kernel_test(const unsigned long n, const unsigned long msize, const unsigned long nb, const unsigned long rb, MTYPE *data, MTYPE *dmat1, MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
 
-#if BPOWER==5
-    __shared__ half mata[256]; 
-    __shared__ half matb[512];
-    __shared__ float matc[2048];    // |-----|-----|-----|-----|
-#else
     __shared__ half mata[256]; 
     __shared__ half matb[256];
     __shared__ float matc[256]; 
-#endif
 
-    __shared__ MTYPE cache[CSPACE];
+    __shared__ MTYPE cache[4][CSPACE];
 
     auto p = map(nb, rb, WARPSIZE, mata, matb, matc);
-    load_cache(cache, dmat1, n, threadIdx, p);
-    if((p.y != 0xFFFFFFFF || p.x != 0xFFFFFFFF) && p.x <= n && p.y <= n && (p.x & (n-1-p.y)) == 0){
-        work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+
+    char sx = threadIdx.x & 15;
+    char sy = threadIdx.y & 15;
+    char ss = threadIdx.x /16 + ((threadIdx.y /16)*2);
+
+    load_cache(cache[ss], dmat1, n, {sx, sy, 0}, p);
+
+    __syncthreads();
+    if((p.y != 0xFFFFFFFF && p.x != 0xFFFFFFFF) && p.x <= n && p.y <= n && (p.x & (n-1-p.y)) == 0){
+        work_cache(data, dmat1, dmat2, cache[ss], {sx, sy, 0}, p, n);
         //work_nocache(data, dmat1, dmat2, p, n);
     }
 }

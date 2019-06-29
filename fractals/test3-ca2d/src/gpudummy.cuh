@@ -18,7 +18,9 @@ RunningStat* lambda(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, u
 
 RunningStat* lambda_tc(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize);
 
-RunningStat* lambda_tc_optimized(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize);
+RunningStat* lambda_tc2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize);
+
+RunningStat* lambda_tc_optimized2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize);
 
 template<typename Lambda>
 RunningStat* performLoad( MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned int trisize, dim3 block, dim3 grid,
