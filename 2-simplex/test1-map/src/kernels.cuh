@@ -31,7 +31,9 @@ __device__ void work(DTYPE *data, MTYPE *mat, uint2 p, int n, const int a){
 }
 // metodo kernel test
 template<typename Lambda>
-__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
+__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, 
+			    DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, 
+			    const unsigned int aux2, const unsigned int aux3){
     auto p = map(n, msize, aux1, aux2, aux3); 
     if(p.y >= p.x && p.y < n){
         work(data, dmat, p, n, a);

@@ -4,7 +4,7 @@
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
 //                                                                              //
-//  Copyright © 2018 Cristobal A. Navarro.                                      //
+//  Copyright © 2019 Cristobal A. Navarro.                                      //
 //                                                                              //
 //  This file is part of gpumaps.                                               //
 //  gpumaps is free software: you can redistribute it and/or modify             //
@@ -23,7 +23,6 @@
 //////////////////////////////////////////////////////////////////////////////////
 #ifndef GPUBENCHMARKS_CUH
 #define GPUBENCHMARKS_CUH
-
 
 double bbox(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
@@ -61,15 +60,14 @@ double lambda(const unsigned long n, const unsigned int REPEATS){
 #ifdef DEBUG
     printf("[Lambda (inverse)]\n");
 #endif
-    DTYPE *hdata, *ddata;
-    MTYPE *hmat, *dmat;
+    	DTYPE *hdata, *ddata;
+    	MTYPE *hmat, *dmat;
 	unsigned long msize, trisize;
-    dim3 block, grid;
+    	dim3 block, grid;
 	init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
-    gen_lambda_pspace(n, block, grid);
+    	gen_lambda_pspace(n, block, grid);
     // formulate map
-    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){
-        uint2 p;
+    	auto map = [] __device__ (const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3){ uint2 p;
         unsigned int bc = blockIdx.x + blockIdx.y*gridDim.x;
         float arg = __fmaf_rn(2.0f, (float)bc, 0.25f);
         p.y = __fmaf_rn(arg, rsqrtf(arg), OFFSET);// + 0.001f;
@@ -156,12 +154,15 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
     printf("gen_hadouken_pspace(%i, ...)\n", n);
 #endif
     // trapezoid map
-    auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
+    auto map = [] __device__ (const unsigned long n, const unsigned long msize, 
+		    		const int aux1, const int aux2, const int aux3){
         // (1) optimzized version: just arithmetic and bit-level operations
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
         const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
         const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
-        return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+        return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, 
+			(blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
+    };
 
         // (2) normal version: arithmetic, bit and logical operations
         /*
@@ -183,7 +184,6 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
             return (uint2){ aux3 + (blockIdx.x + gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2)*blockDim.y + threadIdx.y };
         }
         */
-    };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
     double check = (float)verify_result(n, 2*REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0,0,0), block);
@@ -211,36 +211,34 @@ double hadouken_tc(const unsigned long n, const unsigned int REPEATS){
     printf("gen_hadouken_pspace(%i, ...)\n", n);
 #endif
     // trapezoid map
+    // program tensor core map assuming 32x32 block (split in groups of four 16x16 MMAs)
     auto map = [] __device__ (const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3){
-        // TODO
-        // program tensor core map assuming 32x32 block (split un groups of four 16x16 MMAs)
+	// shared memory block of 32x32
+	// __shared__ half Afrag[256]; 
+	// __shared__ half Bfrag[256]; 
+	__shared__ float Cfrag[512]; 
 
-        // (1) optimzized version: just arithmetic and bit-level operations
-        /*
-        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
-        const unsigned int qb   = blockIdx.x & (MAX_UINT << h);
-        const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
-        return (uint2){(blockIdx.x + qb + (k & gridDim.x))*blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1))*blockDim.x + aux3 + threadIdx.y};
-        */
+	// fill A
+	// TODO: fill A efficiently
+	// fill B
+	// TODO: fill B efficiently
 
-        // (2) normal version: arithmetic, bit and logical operations
-        /*
-        const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
-        const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
-        const unsigned int k = (int)blockIdx.y - aux1 > 0? 1 : 0;
-        return (uint2){ aux3 + (blockIdx.x + qb + k*gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - k*aux2 + (qb << 1))*blockDim.y + threadIdx.y };
-        */
+	// put local X offsets
+	Cfrag[threadIdx.y*16 + threadIdx.x] = threadIdx.x;
+	// put local Y offsets
+	Cfrag[256 + threadIdx.y*16 + threadIdx.x] = threadIdx.y;
 
 
+	return (uint2){1,1};
         // (3) simple version: no programming tricks
         /*
         if( aux1 >= blockIdx.y ){
             const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
             const unsigned int qb   = (blockIdx.x >> h)*(1 << h);
-            return (uint2){ aux3 + (blockIdx.x + qb)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1))*blockDim.y + threadIdx.y };
+            return (uint2){ aux3 + (blockIdx.x+qb)*blockDim.x+threadIdx.x, aux3+(blockIdx.y+(qb << 1))*blockDim.y+threadIdx.y};
         }
         else{
-            return (uint2){ aux3 + (blockIdx.x + gridDim.x)*blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2)*blockDim.y + threadIdx.y };
+            return (uint2){ aux3+(blockIdx.x+gridDim.x)*blockDim.x+threadIdx.x, aux3+(blockIdx.y - aux2)*blockDim.y+threadIdx.y };
         }
         */
     };
