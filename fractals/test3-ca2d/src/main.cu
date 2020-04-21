@@ -12,7 +12,7 @@
 
 int main(int argc, char **argv){
 
-    checkargs(argc, argv, 6, "./prog <dev> <repeats> <methods> <density> <seed>\nmethods:\n0 bounding box\n1 lambda\n2 lambda-tc\n3 lambda-tc_opt\n");
+    checkargs(argc, argv, 6, "./prog <dev> <repeats> <methods> <density> <seed>\nmethods:\n1 bounding box\n2 lambda\n3 lambda-tc\n4 lambda-tc_opt\n5 lambda-tc2\n6 lambda-tc2_opt2\n");
 
     unsigned int dev        = atoi(argv[1]);
     unsigned int REPEATS    = atoi(argv[2]);

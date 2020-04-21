@@ -62,8 +62,8 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
             r = lambda_tc(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
         case 4:
-            printf("Method 4 has its own folder in ../\n");
-            exit(2);
+            r = lambda_tc_optimized(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
+            break;
         case 5:
             r = lambda_tc2(ddata, dmat1, dmat2, n, nb, rb, msize, trisize);
             break;
@@ -113,7 +113,7 @@ RunningStat* boundingBox(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long
         g = dim3(pow(2,rb), pow(2,rb), 1);
     };
 
-    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
+    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE){
         uint2 m;
         m.x = blockIdx.x*blockDim.x + threadIdx.x;
         m.y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -136,7 +136,7 @@ RunningStat* lambda(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, u
     };
 
     // lambda map
-    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
+    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE){
         __shared__ uint2 m;
         auto beta = [] __device__ (const int nb, const uint2 w, const int u){
             int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
@@ -169,10 +169,8 @@ RunningStat* lambda_tc(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n
     dim3 block, grid;
 
     if (BSIZE1D < 32){
-#ifdef DEBUG
         printf("Blocksize needs to be at least 32 to use warp sync mma operations.\n");
-#endif
-        return nullptr;
+        exit(-1);
     }
 
     // pspace: orthotope for lambda
@@ -183,8 +181,10 @@ RunningStat* lambda_tc(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n
 
     // Tensor core lambda map
     // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
-    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
         
+        __shared__ half mata[256]; 
+        __shared__ half matb[256];
         //Has to be declared after the matrices above to avoid 8-byte shifting
         __shared__ uint2 m;
 
@@ -244,15 +244,98 @@ RunningStat* lambda_tc(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n
     return performLoad(ddata, dmat1, dmat2, n, nb, rb, msize, trisize, block, grid, lambdamap_tc, 0, 0, 0 );
 }
 
+RunningStat* lambda_tc_optimized(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize){
+
+    dim3 block, grid;
+
+    rb++;
+
+
+    if (BPOWER != 5){
+        printf("BPOWER has to be 5 to use this method.\n");
+        exit(-1);
+    }
+
+    // pspace: orthotope for lambda on the thing
+    auto psgen = [] (unsigned long rb, int BSIZE, dim3 &b, dim3 &g){ 
+        b = dim3(BSIZE, BSIZE, 1);
+        g = dim3( (int)ceil(pow(3, ceil(rb/2.0)) / 2.0 ), (int)ceil(pow(3, floor(rb/2.0)) / 2.0), 1); 
+    };
+
+    // Tensor core lambda map
+    // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
+        
+        __shared__ half mata[256]; 
+        __shared__ half matb[256];
+        __shared__ float matc[256]; 
+        //Has to be declared after the matrices above to avoid 8-byte shifting
+        uint2 m;
+
+        //Strange behaviour when fragments are shared, the entire iteration reads the same value
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+
+        wmma::fill_fragment(c_fragment, 0.0f);
+
+        auto beta = [] __device__ (const int nb, uint2 bids, const int u){
+            int b = (int)((bids.x*(u & 1) + bids.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return b;
+        };
+        
+        int lid = threadIdx.x + threadIdx.y*blockDim.x;
+        int index = lid;
+
+        if (lid < 256) {
+            if (lid < rb){
+                mata[lid] = 1 << lid;
+            }
+        } else {
+            lid -= 256;
+            if (lid < 128){
+                char row = lid >> 4;
+                char aux = lid >> 5;
+                char b = beta(nb, {(blockIdx.x<<1) + (aux & 1), (blockIdx.y<<1) + (aux>>1)}, (lid&15)+1);
+                int lm = ((b-(b >> 1))*(row & 1) + (b >> 1)*((row+1) & 1));
+                matb[lid] = lm;
+            }
+        } 
+
+        __syncthreads();
+        if (index < 32) {
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+        
+            wmma::load_matrix_sync(b_fragment, &matb[0], 16);
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+
+            wmma::store_matrix_sync(&matc[0], c_fragment, 16, wmma::mem_row_major);
+        }
+        __syncthreads();
+
+        char x = threadIdx.x >> 4;
+        char y = threadIdx.y >> 4;
+        
+        if ( (blockIdx.x == gridDim.x-1 && x==1) || (blockIdx.y == gridDim.y-1 && y==1)){
+            return (uint2){0xFFFFFFFF, 0xFFFFFFFF};
+        }
+        char ss = (x<<1) + (y<<2);
+        m = (uint2){(int)(matc[ss]), (int)(matc[ss+1])};
+
+        return (uint2){(m.x << 4) + (threadIdx.x & 15), (m.y << 4) + (threadIdx.y & 15)};
+    };
+
+    psgen(rb, 1<<BPOWER, block, grid);
+
+    return performLoad(ddata, dmat1, dmat2, n, nb, rb, msize, trisize, block, grid, lambdamap_tc, 0, 0, 0);
+}
 
 RunningStat* lambda_tc2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long n, unsigned long nb, unsigned long rb, unsigned long msize, unsigned long trisize){
     dim3 block, grid;
 
     if (BSIZE2D != 16){
-#ifdef DEBUG
         printf("This method requires a 16x16 block.\n");
-#endif
-        return nullptr;
+        exit(-1);
     }
 
     // pspace: orthotope for lambda
@@ -263,9 +346,11 @@ RunningStat* lambda_tc2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned long 
 
     // Tensor core lambda map
     // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
-    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
 
-        
+        __shared__ half mata[256]; 
+        __shared__ half matb[512];
+        __shared__ float matc[512];    // |-----|-----|-----|-----|
         //Has to be declared after the matrices above to avoid 8-byte shifting
         //__shared__ uint2 m;
 
@@ -324,10 +409,8 @@ RunningStat* lambda_tc_optimized2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsi
 
 
     if (BPOWER != 5){
-#ifdef DEBUG
         printf("BPOWER has to be 5 to use this method.\n");
-#endif
-        return nullptr;
+        exit(-1);
     }
 
     // pspace: orthotope for lambda on the thing
@@ -338,9 +421,12 @@ RunningStat* lambda_tc_optimized2(MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsi
 
     // Tensor core lambda map
     // This map assumes that the block size is >=32, which is the minimum to perform tensor core mma,
-    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half *mata, half *matb, float *matc){
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE){
         
-        //Strange behaviour when fragments are shared, the entire iteration reads the same value
+        __shared__ half mata[256]; 
+        __shared__ half matb[512];
+        __shared__ float matc[2048];    // |-----|-----|-----|-----|
+
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
         wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
@@ -501,7 +587,7 @@ RunningStat* performLoad( MTYPE *ddata, MTYPE *dmat1, MTYPE *dmat2, unsigned lon
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     last_cuda_error("benchmark-check");
 
-    r->Push(time/(1000.0f * INNER_REPEATS));
+    r->Push(time/(1000.0f * 2.f* REPEATS));
 
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);

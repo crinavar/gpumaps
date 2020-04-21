@@ -13,7 +13,7 @@ DN=$7
 R=$8
 BINARY=${9}
 OUTFILE="d"
-METHODS=("BBox" "Lambda" "Lambda-tc" "Lambda-tc_optim")
+METHODS=("BBox" "Lambda" "Lambda-tc" "Lambda-tc_optim" "Lambda-tc2" "Lambda-tc2-optim2")
 NM=$((${#METHODS[@]}))
 TMEAN[0]=0
 TVAR[0]=0
@@ -41,10 +41,7 @@ do
             # Chosen MAP
             echo "./${BINARY} ${DEV} ${R} ${q} 0.5 1"
             echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
-            for k in `seq 1 ${SAMPLES}`;
-            do
-                x=`${BINARY} ${DEV} ${R} ${q} 0.5 1`
-            done
+            x=`${BINARY} ${DEV} ${R} ${q} 0.5 1`
             echo "done"
             echo -n "[BENCHMARK] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)............."
             if [ "${BP}" -eq 5 ]; then

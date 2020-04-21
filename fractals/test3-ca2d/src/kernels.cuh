@@ -56,6 +56,14 @@ __device__ __inline__ void set_halo(MTYPE *cache, MTYPE *mat, unsigned long N, u
     }
 }
 
+__device__ void work_nocache(MTYPE *data, MTYPE *mat1, MTYPE *mat2, uint2 p, int n){
+    int nc = mat1[GINDEX(p.x-1, p.y-1, n)] + mat1[GINDEX(p.x, p.y-1, n)] + mat1[GINDEX(p.x+1, p.y-1, n)] + 
+             mat1[GINDEX(p.x-1, p.y, n  )] +                               mat1[GINDEX(p.x+1, p.y, n  )] + 
+             mat1[GINDEX(p.x-1, p.y+1, n)] + mat1[GINDEX(p.x, p.y+1, n)] + mat1[GINDEX(p.x+1, p.y+1, n)];
+    unsigned int c = mat1[GINDEX(p.x, p.y, n)];
+    // transition function applied to state 'c' and written into mat2
+    mat2[GINDEX(p.x, p.y, n)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
+}
 __device__ void work_cache(MTYPE *data, MTYPE *mat1, MTYPE *mat2, MTYPE *cache, uint3 lp, uint2 p, int n){
     // neighborhood count 
     int nc =    cache[CINDEX(lp.x-1, lp.y-1)] + cache[CINDEX(lp.x, lp.y-1)] + cache[CINDEX(lp.x+1, lp.y-1)] + 
@@ -83,23 +91,13 @@ __device__ __inline__ void load_cache(MTYPE *cache, MTYPE *mat, unsigned long n,
 template<typename Lambda>
 __global__ void kernel_test(const unsigned long n, const unsigned long msize, const unsigned long nb, const unsigned long rb, MTYPE *data, MTYPE *dmat1, MTYPE *dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3){
 
-#if BPOWER==5
-    __shared__ half mata[256]; 
-    __shared__ half matb[512];
-    __shared__ float matc[2048];    // |-----|-----|-----|-----|
-#else
-    __shared__ half mata[256]; 
-    __shared__ half matb[256];
-    __shared__ float matc[256]; 
-#endif
+    //__shared__ MTYPE cache[CSPACE];
 
-    __shared__ MTYPE cache[CSPACE];
-
-    auto p = map(nb, rb, WARPSIZE, mata, matb, matc);
-    load_cache(cache, dmat1, n, threadIdx, p);
+    auto p = map(nb, rb, WARPSIZE);
+    //load_cache(cache, dmat1, n, threadIdx, p);
     if((p.y != 0xFFFFFFFF || p.x != 0xFFFFFFFF) && p.x <= n && p.y <= n && (p.x & (n-1-p.y)) == 0){
-        work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
-        //work_nocache(data, dmat1, dmat2, p, n);
+        //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+        work_nocache(data, dmat1, dmat2, p, n);
     }
 }
 
