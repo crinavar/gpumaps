@@ -13,7 +13,7 @@ DN=$7
 R=$8
 BINARY=${9}
 OUTFILE="d"
-METHODS=("BBox" "Compressed" "Lambda")
+METHODS=("BBox" "Lambda" "compressed" "compressed tc")
 NM=$((${#METHODS[@]}))
 TMEAN[0]=0
 TVAR[0]=0
@@ -51,14 +51,14 @@ do
             do
                 x=`${BINARY} ${DEV} ${R} ${q} 0.5 1`
                 oldM=$M;
-                M=$(echo "scale=10;  $M+($x-$M)/$k"           | ~/bc)
-                S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | ~/bc)
+                M=$(echo "scale=10;  $M+($x-$M)/$k"           | bc)
+                S=$(echo "scale=10;  $S+($x-$M)*($x-${oldM})" | bc)
             done
             echo "done"
             MEAN=$M
-            VAR=$(echo "scale=10; $S/(${SAMPLES}-1.0)"  | ~/bc)
-            STDEV=$(echo "scale=10; sqrt(${VAR})"       | ~/bc)
-            STERR=$(echo "scale=10; ${STDEV}/sqrt(${SAMPLES})" | ~/bc)
+            VAR=$(echo "scale=10; $S/(${SAMPLES}-1.0)"  | bc)
+            STDEV=$(echo "scale=10; sqrt(${VAR})"       | bc)
+            STERR=$(echo "scale=10; ${STDEV}/sqrt(${SAMPLES})" | bc)
             TMEAN[$q]=${MEAN}
             TVAR[$q]=${VAR}
             TSTDEV[$q]=${STDEV}

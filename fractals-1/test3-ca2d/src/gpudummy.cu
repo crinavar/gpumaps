@@ -56,6 +56,9 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
         case 3:
             r = compressed(n, nb, rb, density);
             break;
+        case 4:
+            r = compressed_tc(n, nb, rb, density);
+            break;
         default:
             throw "Method not implemented.";
         
@@ -74,13 +77,21 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
     printf("ok\n\n"); fflush(stdout);
 #endif
 
-    // Return computing time
-    stat.mean = r->Mean();
-    stat.variance = r->Variance();
-    stat.stdev = r->StandardDeviation();
-    stat.sterr = r->StandardDeviation()/((double)sqrt(r->NumDataValues()));
+    if (r == nullptr){
+        stat.mean = 0;
+        stat.variance = 0;
+        stat.stdev = 0;
+        stat.sterr = 0;
 
-    free(r);
+    } else {
+        // Return computing time
+        stat.mean = r->Mean();
+        stat.variance = r->Variance();
+        stat.stdev = r->StandardDeviation();
+        stat.sterr = r->StandardDeviation()/((double)sqrt(r->NumDataValues()));
+
+        free(r);
+    }
     return stat;
 }
 
@@ -135,14 +146,14 @@ RunningStat* boundingBox(size_t n, size_t nb, size_t rb, double density){
     block = dim3(BSIZE2D, BSIZE2D, 1);
     grid = dim3(pow(2,rb), pow(2,rb), 1);
 
-    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto bbmap = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
         uint2 m;
         m.x = blockIdx.x*blockDim.x + threadIdx.x;
         m.y = blockIdx.y*blockDim.y + threadIdx.y;
         return m;
     };
 
-    auto inv = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto inv = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
         uint2 m;
         m.x = blockIdx.x*blockDim.x + threadIdx.x;
         m.y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -207,9 +218,9 @@ RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
         getchar();
     #endif
     // compressed map
-    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
         __shared__ int2 m;
-        auto beta = [] __device__ (const int nb, const uint2 w, const int u){
+        auto beta = [] __device__ (const int nb, const int u){
             int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
             return b;
         };
@@ -219,7 +230,7 @@ RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
         if(lid < WSIZE){
             int2 lm = {0,0};
             while(lid < rb){
-                int b = beta(nb, {blockIdx.x, blockIdx.y}, lid+1);
+                int b = beta(nb, lid+1);
                 lm.x += (b >> 1) * (1 << (lid));
                 lm.y += (b - (b >> 1)) * (1 << (lid));
                 lid += WSIZE;
@@ -232,29 +243,28 @@ RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
         return (int2){m.x, m.y};
     };
 
-    auto inv = [] __device__ (const int x, const int y, const int nb, const int rb, const int WSIZE, int elementInHaloSide){
-        __shared__ int2 m;
+    auto inv = [] __device__ (const int x, const int y, const int nb, const int rb, const int WSIZE, int lid, half* mata, half* matb){
+        int2 m = {0,0};
         auto H = [] __device__ (const int xx, const int yy, const int u){
             int res = (int) ((xx & ((1 << (u+1)) - 1))>>(u)) + ((yy & ((1 << (u+1)) - 1)) >> (u));
             //int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
             return res;
         };
         //int lid = elementInHaloSide;//threadIdx.x + threadIdx.y*blockDim.x;
-        int lid = threadIdx.x + threadIdx.y*blockDim.x;
-        int tid = lid;
+        //printf("lid: %i - wsize: %i - rb: %i\n", lid, WSIZE, rb);
         if(lid < WSIZE){
-            int2 lm = {0,0};
             while(lid < rb){
                 int h = H(x, y, lid);
                 //int b = beta(nb, {blockIdx.x, blockIdx.y}, lid+1);
                 int bx = ((lid+1) & 1);
                 int by = ((lid) & 1);
-                m.x += pow3(lid >> 1) * bx * h;
-                m.y += pow3(lid >> 1) * by * h;
+                float p = pow3(lid >> 1);
+                m.x += p * bx * h;
+                m.y += p * by * h;
                 lid += WSIZE;
             }
-            lm = warp_reduce(lm, WSIZE); 
-            if(tid == 0){ m = lm; }
+            m = warp_reduce(m, WSIZE); 
+            //if(tid == 0){ m = lm; }
         }
 
         __syncthreads();
@@ -265,6 +275,176 @@ RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
     return performLoadCompressed(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap, inv);
 }
 
+RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
+    if (BSIZE2D < 16){
+        printf("Only implemented for 32x32 blockSize.\n");
+        return nullptr;
+    }
+    MTYPE *mat_h, *mat1_d, *mat2_d;
+
+    dim3 block, grid;
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid = dim3((int)pow(3, ceil(rb/2.0)), (int)pow(3, floor(rb/2.0)), 1); 
+    
+    //printf("GRID (%i, %i, %i)\nBLOCK(%i, %i, %i)\n", grid.x, grid.y, grid.z, block.x, block.y, block.z);
+
+    size_t nx;
+    size_t ny;
+    if (rb == 0){
+        nx = (size_t)ceil(pow(2, RLEVEL));
+        ny = (size_t)ceil(pow(2, RLEVEL));
+    } else {
+        nx = pow(3, ceil(rb/2.0))*BSIZE2D;
+        ny = pow(3, floor(rb/2.0))*BSIZE2D;
+    }
+
+    size_t nxExtended = nx+2;
+    size_t nyExtended = ny+2;
+
+    //printf("Nx is %i\nNy is %i\n", nx, ny);
+    size_t celements = nxExtended*nyExtended;
+
+    gpuErrchk(cudaMalloc(&mat1_d, sizeof(MTYPE)*celements));
+    gpuErrchk(cudaMalloc(&mat2_d, sizeof(MTYPE)*celements));
+    mat_h = (int*)malloc(celements*sizeof(MTYPE));
+
+    for(int i=0; i<nyExtended; i++){
+        for(int j=0; j<nxExtended; j++){
+            mat_h[i*(nxExtended)+j] = 0x0;
+        }
+    }
+
+    for(int i=0; i<ny; i++){
+        for(int j=0; j<nx; j++){
+            size_t coord = (i+1)*(nxExtended)+j+1;
+            int x = j%BSIZE2D;
+            int y = i%BSIZE2D;
+            if ((double)rand() / (double)RAND_MAX < density && ((x) & (n-1-y)) == 0){
+                mat_h[coord] = 0x1;
+            } else {
+                mat_h[coord ] = 0x0;
+            }
+        }
+    }
+    
+    cudaMemcpy(mat1_d, mat_h, sizeof(MTYPE)*nxExtended*nyExtended, cudaMemcpyHostToDevice);
+    #ifdef DEBUG
+        printf("Initial state\n");
+        print_dmat(PRINTLIMIT, RLEVEL, nx+2, ny+2, mat_h, "");
+        getchar();
+    #endif
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
+        
+        //Has to be declared after the matrices above to avoid 8-byte shifting
+        __shared__ uint2 m;
+
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+
+        auto beta = [] __device__ (const int nb, const int u){
+            int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return b;
+        };
+        
+        int lid = threadIdx.x + threadIdx.y*blockDim.x;
+        int index = lid;
+
+        if (lid < 32) {
+            //Has to be resetted to 0. Latter kernel calls were getting weird values
+            #pragma unroll
+            for (int i=0; i<2; i++){
+                matb[i*32 + lid] = 0;
+            }
+            if (lid < rb){
+                mata[lid] = 1 << lid;
+            }
+        } else {
+            lid -= 32;
+            if (lid < rb<<1){
+                char column = lid/rb;
+                //lid = lid%rb;
+                lid = lid-rb*column;
+                char b = beta(nb, lid+1);
+                int lm = ((b-(b >> 1))*(column & 1) + (b >> 1)*((column+1) & 1));
+                matb[lid + column*16] = lm;
+            }
+        } 
+
+        __syncthreads();
+        if (index < 32) {
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+        
+            wmma::load_matrix_sync(b_fragment, &matb[0], 16);
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+        }
+
+        __syncthreads();
+        if (index == 0){
+            m = (uint2){(int)(c_fragment.x[0]), (int)(c_fragment.x[1])};
+        }
+
+        __syncthreads();
+
+        return (uint2){m.x, m.y};
+    };
+
+    auto inv_tc = [] __device__ (const int x, const int y, const int nb, const int rb, const int WSIZE, int elementInHaloSide, half* mata, half* matb){
+        
+        __shared__ int2 m;
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+        auto H = [] __device__ (const int xx, const int yy, const int u){
+            int res = (int) ((xx & ((1 << (u+1)) - 1))>>(u)) + ((yy & ((1 << (u+1)) - 1)) >> (u));
+            //int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return res;
+        };
+        //int lid = elementInHaloSide;//threadIdx.x + threadIdx.y*blockDim.x;
+        int lid = threadIdx.x + threadIdx.y*blockDim.x;
+        //printf("lid: %i - wsize: %i - rb: %i\n", lid, WSIZE, rb);
+        if (lid < 32) {
+            //Has to be resetted to 0. Latter kernel calls were getting weird values
+            #pragma unroll
+            for (int i=0; i<2; i++){
+                matb[i*32 + lid] = 0;
+            }
+            if (lid < rb){
+                mata[lid] = pow3(lid >> 1);
+            }
+        } else {
+            lid -=32;
+            if (lid < rb<<1){
+                char column = lid/rb;
+                //lid = lid%rb;
+                lid = lid-rb*column;
+                char h = H(x, y, lid);
+                int bx = ((lid+1) & 1) * h;
+                int by = ((lid)   & 1) * h;
+                matb[lid + column<<3] = bx+by;
+            }
+        }
+
+        __syncthreads();
+        if (lid < 32) {
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+        
+            wmma::load_matrix_sync(b_fragment, &matb[0], 16);
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+        }
+
+        __syncthreads();
+        if (lid == 0){
+            m = (int2){(int)(c_fragment.x[0]), (int)(c_fragment.x[1])};
+        }
+
+        __syncthreads();
+        return (int2){m.x, m.y};
+        //return m;
+    };
+    // compressed map
+    return performLoadCompressed_tc(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap_tc, inv_tc);
+}
 RunningStat* lambda(size_t n, size_t nb, size_t rb, double density){
 
     MTYPE *mat_h, *mat1_d, *mat2_d;
@@ -310,9 +490,9 @@ RunningStat* lambda(size_t n, size_t nb, size_t rb, double density){
     };
 
     // lambda map
-    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE){
+    auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
         __shared__ int2 m;
-        auto beta = [] __device__ (const int nb, const uint2 w, const int u){
+        auto beta = [] __device__ (const int nb, const int u){
             int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
             return b;
         };
@@ -321,7 +501,7 @@ RunningStat* lambda(size_t n, size_t nb, size_t rb, double density){
         if(lid < WSIZE){
             int2 lm = {0,0};
             while(lid < rb){
-                int b = beta(nb, {blockIdx.x, blockIdx.y}, lid+1);
+                int b = beta(nb, lid+1);
                 lm.x += (b >> 1) * (1 << (lid));
                 lm.y += (b - (b >> 1)) * (1 << (lid));
                 lid += WSIZE;
@@ -426,6 +606,65 @@ RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, s
         #endif
 
         kernelCompressed<<< grid, block >>>(nfract, nx-2, ny-2, nb, rb, mat2_d, mat1_d, map, inv, WSIZE);	
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            printf("result pong\n");
+            print_dmat_gpu(PRINTLIMIT, RLEVEL, nx, ny, mat_h, mat1_d, "");
+            print_dmat_gpu_comp(PRINTLIMIT, RLEVEL, nfract, rb, block.x, nx, ny, mat_h, mat1_d, "");
+            getchar();
+        #endif
+    }
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+#endif
+    cudaEventRecord(stop,0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop); // that's our time!
+    last_cuda_error("benchmark-check");
+
+    r->Push(time/(1000.0f * 2.f* REPEATS));
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+    last_cuda_error("benchmark-check");
+#ifdef DEBUG
+    printf("\x1b[1mok\n\x1b[0m"); fflush(stdout);
+#endif
+
+    return r;
+}
+
+template<typename Lambda, typename Inverse>
+RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+                            Lambda map, Inverse inv) {
+
+
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+    // runningstat statistics
+    RunningStat *r = new RunningStat();
+    float time = 0.0;
+    #ifdef DEBUG
+
+    printf("INITIAL DECOMP\n");
+    print_dmat_gpu_comp(PRINTLIMIT, RLEVEL, nfract, rb, block.x, nx, ny, mat_h, mat1_d, "initial decomp");
+    #endif
+
+    // measure running time
+    cudaEventRecord(start, 0);	
+    for(int k=0; k<REPEATS; k++){
+        kernelCompressed_tc<<< grid, block >>>(nfract, nx-2, ny-2, nb, rb, mat1_d, mat2_d, map, inv, WSIZE);	
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            printf("result ping\n");
+            print_dmat_gpu(PRINTLIMIT, RLEVEL, nx, ny, mat_h, mat2_d, "");
+            print_dmat_gpu_comp(PRINTLIMIT, RLEVEL, nfract, rb, block.x, nx, ny, mat_h, mat2_d, "");
+            getchar();
+        #endif
+
+        kernelCompressed_tc<<< grid, block >>>(nfract, nx-2, ny-2, nb, rb, mat2_d, mat1_d, map, inv, WSIZE);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
             printf("result pong\n");
