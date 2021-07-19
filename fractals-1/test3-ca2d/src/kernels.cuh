@@ -307,7 +307,7 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
     int tid = blockDim.x*threadIdx.y + threadIdx.x;
     int wid = tid/WARPSIZE;
 
-    int haloSideToCopy = BSIZE1D/32 < 4 ? threadIdx.y : tid/32;
+    int haloSideToCopy = BSIZE1D>>5 < 4 ? threadIdx.y : tid>>5;
     int elementInHaloSide = threadIdx.x;
     //detectar de que bloque es, traducir el blioque para ver su valor
 
@@ -317,27 +317,32 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
     if (local.x < nx && local.y < ny)
         cache[CINDEX(threadIdx.x, threadIdx.y)] = dmat1[GINDEX(local.x, local.y, nx)];
     
-    int lid = (threadIdx.x + threadIdx.y*blockDim.x);
+    int lid = tid;
     //printf("lid: %i\n", lid);
-    for (int neighbor=0; neighbor<8; neighbor+=1){
-        int neighborCoordx = traducx[neighbor] + p.x;
-        int neighborCoordy = traducy[neighbor] + p.y;
+    //for (int neighbor=wid; neighbor<8; neighbor+=BSIZE1D/WARPSIZE){
+    if (wid < 8){
+        int neighborCoordx = traducx[wid] + p.x;
+        int neighborCoordy = traducy[wid] + p.y;
         
         int2 m = getUncompressedCoordinate(neighborCoordx, neighborCoordy, n, nx, nb, rb, inv, WARPSIZE, lid, mata, matb);
         //printf("%i, %i\n", m.x, m.y);
         //int2 m = {0,0};
 
-        if (lid == 0){
-            //printf("AAS\n");
-            coords[neighbor] = m;
-        }
-        if (lid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
-            printf("%i: b(%i, %i) con p(%i,%i) -> %i, %i -----> %i, %i\n", neighbor, blockIdx.x, blockIdx.y, p.x, p.y, neighborCoordx, neighborCoordy, coords[neighbor].x, coords[neighbor].y);
-          
-        }
-    }
+        if (lid <8){
 
+            coords[lid] = (int2){mata[lid<<1], mata[lid<<1+1]};
+
+        }
+            //printf("AAS\n");
+          //  coords[neighbor] = m;
+        //}
+        //if (lid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
+        //    printf("%i: b(%i, %i) con p(%i,%i) -> %i, %i -----> %i, %i\n", neighbor, blockIdx.x, blockIdx.y, p.x, p.y, neighborCoordx, neighborCoordy, coords[neighbor].x, coords[neighbor].y);
+          
+        //}
+    }
     __syncthreads();
+
     int neighborCoordx;
     int neighborCoordy;
     // top side

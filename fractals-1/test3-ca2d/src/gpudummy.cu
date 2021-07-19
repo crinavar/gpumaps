@@ -340,7 +340,7 @@ RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
 
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
-        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, half> c_fragment;
 
         auto beta = [] __device__ (const int nb, const int u){
             int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
@@ -352,10 +352,7 @@ RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
 
         if (lid < 32) {
             //Has to be resetted to 0. Latter kernel calls were getting weird values
-            #pragma unroll
-            for (int i=0; i<2; i++){
-                matb[i*32 + lid] = 0;
-            }
+            matb[lid] = 0;
             if (lid < rb){
                 mata[lid] = 1 << lid;
             }
@@ -391,57 +388,84 @@ RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
 
     auto inv_tc = [] __device__ (const int x, const int y, const int nb, const int rb, const int WSIZE, int lid, half* mata, half* matb){
         
-        __shared__ int2 m;
+        //__shared__ float matc[256];
+        int2 m;
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
-        wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, half> c_fragment;
         auto H = [] __device__ (const int xx, const int yy, const int u){
             int res = (int) ((xx & ((1 << (u+1)) - 1))>>(u)) + ((yy & ((1 << (u+1)) - 1)) >> (u));
             //int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
             return res;
         };
         //int lid = elementInHaloSide;//threadIdx.x + threadIdx.y*blockDim.x;
-        int index = lid;
+        //int index = lid;
 
         //printf("lid: %i - wsize: %i - rb: %i\n", lid, WSIZE, rb);
-        if (lid < 32) {
+        //if (lid < 32) {
             //Has to be resetted to 0. Latter kernel calls were getting weird values
-            #pragma unroll
-            for (int i=0; i<2; i++){
-                matb[i*32 + lid] = 0;
-            }
-            if (lid < rb){
-                mata[lid] = pow3(lid >> 1);
-            }
-        } else {
-            lid -=32;
-            if (lid < rb<<1){
-                char column = lid/rb;
-                //lid = lid%rb;
-                lid = lid-rb*column;
-                char h = H(x, y, lid);
-                int bx = ((lid+1) & 1) * h;
-                int by = ((lid)   & 1) * h;
-                matb[lid + column<<3] = bx+by;
-            }
-        }
 
-        __syncthreads();
-        if (index < 32) {
+        char col = lid & 15;
+        char row = lid >> 4;
+
+        //matb[lid] = 0;
+        if (lid < rb){
+            mata[lid] = pow3(col >> 1);
+        } else {
+            mata[lid] = 0;
+
+        }
+        //} else {
+            //lid -=32;
+        if (col < rb){
+            char column = (col + ((row+1) & 1)) & 1;
+            //lid = lid%rb;
+            //lid = lid-rb*column;
+            char h = H(x, y, col);
+            //int bx = ((lid+1) & 1) * h;
+            //int by = ((lid)   & 1) * h;
+            matb[lid] = h*column;
+        } else {
+            matb[lid] = 0;
+        }
+        //}
+        if (lid < 32) {
+            wmma::fill_fragment(c_fragment, 0.f);
             wmma::load_matrix_sync(a_fragment, &mata[0], 16);
         
             wmma::load_matrix_sync(b_fragment, &matb[0], 16);
             wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+            wmma::store_matrix_sync(mata, c_fragment, 16, wmma::mem_row_major);
         }
 
+        //__syncthreads();
+        //if (lid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
+        //    for (int i=0; i<16; i++){
+        //        for (int j=0; j<16; j++)
+        //            printf("m: %f ", (float)matb[i*16+j]);
+        //        printf("\n");
+        //    }
+        //}
+        //__syncthreads();
+        //wmma::store_matrix_sync(mata, c_fragment, 16, wmma::mem_row_major);
         __syncthreads();
-        if (index == 0){
-            m = (int2){(int)(c_fragment.x[0]), (int)(c_fragment.x[1])};
-        }
+        //if (lid == 0){
+        //m = (int2){(int)(c_fragment.x[0]), (int)(c_fragment.x[1])};
+        /*
+        if (lid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
+                printf("\n");
+            for (int i=0; i<16; i++){
+                for (int j=0; j<16; j++)
+                    printf("m: %f ", (float)mata[i*16+j]);
+                printf("\n");
+            }
+        }*/
+        //__syncthreads();
+        //}
 
-        __syncthreads();
-        return (int2){m.x, m.y};
-        //return m;
+        //__syncthreads();
+        //return (int2){m.x, m.y};
+        return m;
     };
     // compressed map
     return performLoadCompressed_tc(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap_tc, inv_tc);
