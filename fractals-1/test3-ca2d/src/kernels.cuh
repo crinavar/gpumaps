@@ -66,7 +66,7 @@ __global__ void kernelBoundingBox(const size_t nx, const size_t ny, const size_t
             cache[CINDEX(BSIZE2D, BSIZE2D)] = dmat1[ GINDEX(p.x + BSIZE2D, p.y + BSIZE2D, nx) ];
         }
     }*/
-    __syncthreads();
+    //__syncthreads();
 
 
     if(p.x < nx && p.y < ny && (p.x & (nx-1-p.y)) == 0){
@@ -111,6 +111,9 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
 
     // In this method, this mapping function returns block level coordinates!
     int2 p = map(nb, rb, WARPSIZE, nullptr, nullptr);
+    int lpx = p.x*blockDim.x + threadIdx.x;
+    int lpy = p.y*blockDim.y + threadIdx.y;
+
     uint2 local;
     local.x = blockIdx.x*blockDim.x + threadIdx.x;
     local.y = blockIdx.y*blockDim.y + threadIdx.y;
@@ -121,7 +124,6 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
     int wid = tid/WARPSIZE;
 
     int haloSideToCopy = BSIZE1D/32 < 4 ? threadIdx.y : tid/32;
-    int elementInHaloSide = threadIdx.x;
 
     //printf("%i, %i  --- > %i, %i\n", local.x, local.y, p.x, p.y);
 
@@ -134,7 +136,7 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
         int neighborCoordx = traducx[neighbor] + p.x;
         int neighborCoordy = traducy[neighbor] + p.y;
         
-        int2 m = getUncompressedCoordinate(neighborCoordx, neighborCoordy, n, nx, nb, rb, inv, WARPSIZE, lid, nullptr, nullptr);
+        int2 m = inv(neighborCoordx, neighborCoordy, nb, rb, WARPSIZE, lid, nullptr, nullptr);
         if (lid == 0){
             coords[neighbor] = m;
         }
@@ -145,71 +147,69 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
     }
 
     __syncthreads();
-    int neighborCoordx;
-    int neighborCoordy;
     // top side
-    if(haloSideToCopy == 0%cacheSize){
-        neighborCoordx = traducx[1] + p.x;
-        neighborCoordy = traducy[1] + p.y;
+    if(haloSideToCopy == 0 & (cacheSize-1)){
+        int neighborCoordx = traducx[1] + p.x;
+        int neighborCoordy = traducy[1] + p.y;
         if (neighborCoordy == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(elementInHaloSide, -1)]         = 0;
+            cache[CINDEX(threadIdx.x, -1)]         = 0;
         } else {
             int2 m = coords[1];
             //printf("top side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
-            m.x = m.x*blockDim.x + elementInHaloSide;
+            m.x = m.x*blockDim.x + threadIdx.x;
             m.y = m.y*blockDim.y + blockDim.y - 1;
-            cache[CINDEX(elementInHaloSide, -1)]         = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(threadIdx.x, -1)]         = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // right side
-    if(haloSideToCopy == 2%cacheSize){
-        neighborCoordx = traducx[4] + p.x;
-        neighborCoordy = traducy[4] + p.y;
+    if(haloSideToCopy == 1 & (cacheSize-1)){
+        int neighborCoordx = traducx[4] + p.x;
+        int neighborCoordy = traducy[4] + p.y;
         if (neighborCoordx == nb || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(cacheSize, elementInHaloSide)] = 0;
+            cache[CINDEX(cacheSize, threadIdx.x)] = 0;
         } else {
             int2 m = coords[4];
             //printf("right side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
             m.x = m.x*blockDim.x;
-            m.y = m.y*blockDim.y + elementInHaloSide;
-            cache[CINDEX(cacheSize, elementInHaloSide)] = dmat1[ GINDEX(m.x, m.y, nx) ];
+            m.y = m.y*blockDim.y + threadIdx.x;
+            cache[CINDEX(cacheSize, threadIdx.x)] = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
 
     }
     // left side
-    if(haloSideToCopy == 3%cacheSize){
-        neighborCoordx = traducx[3] + p.x;
-        neighborCoordy = traducy[3] + p.y;
+    if(haloSideToCopy == 2 & (cacheSize-1)){
+        int neighborCoordx = traducx[3] + p.x;
+        int neighborCoordy = traducy[3] + p.y;
         if (neighborCoordx == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(-1, elementInHaloSide)]           = 0;
+            cache[CINDEX(-1, threadIdx.x)]           = 0;
         } else {
             int2 m = coords[3];
-            //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-elementInHaloSide, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
+            //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-threadIdx.x, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
             m.x = m.x*blockDim.x + blockDim.x - 1;
-            m.y = m.y*blockDim.y + elementInHaloSide;
-            cache[CINDEX(-1, elementInHaloSide)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            m.y = m.y*blockDim.y + threadIdx.x;
+            cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // bottom side
-    if(haloSideToCopy == 4%cacheSize){
-        neighborCoordx = traducx[6] + p.x;
-        neighborCoordy = traducy[6] + p.y;
+    if(haloSideToCopy == 3 & (cacheSize-1)){
+        int neighborCoordx = traducx[6] + p.x;
+        int neighborCoordy = traducy[6] + p.y;
         if (neighborCoordy == nb || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(elementInHaloSide, cacheSize)] = 0;
+            cache[CINDEX(threadIdx.x, cacheSize)] = 0;
         } else {
             int2 m = coords[6];
-            m.x = m.x*blockDim.x + elementInHaloSide;
+            m.x = m.x*blockDim.x + threadIdx.x;
             m.y = m.y*blockDim.y;
             //printf("bottom side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
-            cache[CINDEX(elementInHaloSide, cacheSize)] = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(threadIdx.x, cacheSize)] = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // local thread 0 in charge of the four corners
     // compartir el valor del bloque traducido al fractal para el warp asi se aprovecha la reduccion y el loglog(n)
-    if(tid == 0){
+    if(haloSideToCopy == 4 & (cacheSize-1)){
         // top-left
-        neighborCoordx = traducx[0] + p.x;
-        neighborCoordy = traducy[0] + p.y;
+        int neighborCoordx = traducx[0] + p.x;
+        int neighborCoordy = traducy[0] + p.y;
         if (neighborCoordx == -1 || neighborCoordy == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
             cache[CINDEX(-1, -1)]           = 0;
         } else {
@@ -218,10 +218,11 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
             m.y = m.y*blockDim.y + blockDim.y - 1;
             cache[CINDEX(-1, -1)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
-        
+    }   
         // top-right
-        neighborCoordx = traducx[2] + p.x;
-        neighborCoordy = traducy[2] + p.y;
+    if(haloSideToCopy == 5 & (cacheSize-1)){
+        int neighborCoordx = traducx[2] + p.x;
+        int neighborCoordy = traducy[2] + p.y;
         if ( neighborCoordx == nb || neighborCoordy == -1 || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
             cache[CINDEX(cacheSize, -1)]      = 0;
         } else {
@@ -230,10 +231,11 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
             m.y = m.y*blockDim.y + blockDim.y - 1;
             cache[CINDEX(cacheSize, -1)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
-
+    }
         // bot-left
-        neighborCoordx = traducx[5] + p.x;
-        neighborCoordy = traducy[5] + p.y;
+    if(haloSideToCopy == 6 & (cacheSize-1)){
+        int neighborCoordx = traducx[5] + p.x;
+        int neighborCoordy = traducy[5] + p.y;
         if ( neighborCoordx == -1 || neighborCoordy == nb || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
             cache[CINDEX(-1, cacheSize)]      = 0;
         } else {
@@ -242,10 +244,12 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
             m.y = m.y*blockDim.y;
             cache[CINDEX(-1, cacheSize)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
+    }
 
         // bot-right
-        neighborCoordx = traducx[7] + p.x;
-        neighborCoordy = traducy[7] + p.y;
+    if(haloSideToCopy == 7 & (cacheSize-1)){
+        int neighborCoordx = traducx[7] + p.x;
+        int neighborCoordy = traducy[7] + p.y;
         if ( neighborCoordx == nb || neighborCoordy == nb || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
             cache[CINDEX(cacheSize, cacheSize)] = 0;
         } else {
@@ -270,15 +274,12 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
     //dmat2[GINDEX(local.x, local.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
     
     __syncthreads();
-    int lpx = p.x*blockDim.x + threadIdx.x;
-    int lpy = p.y*blockDim.y + threadIdx.y;
-    __syncthreads();
     if(lpx < n && lpy < n && (lpx & (n-1-lpy)) == 0){
         //printf("%i, %i, %i\n", threadIdx.x, threadIdx.y, (int)BSIZE2D);
+        unsigned int c = cache[CINDEX(threadIdx.x, threadIdx.y)];
         int nc =    cache[CINDEX(threadIdx.x-1, threadIdx.y-1)] + cache[CINDEX(threadIdx.x, threadIdx.y-1)] + cache[CINDEX(threadIdx.x+1, threadIdx.y-1)] + 
                     cache[CINDEX(threadIdx.x-1, threadIdx.y  )] +                                             cache[CINDEX(threadIdx.x+1, threadIdx.y  )] + 
                     cache[CINDEX(threadIdx.x-1, threadIdx.y+1)] + cache[CINDEX(threadIdx.x, threadIdx.y+1)] + cache[CINDEX(threadIdx.x+1, threadIdx.y+1)];
-        unsigned int c = cache[CINDEX(threadIdx.x, threadIdx.y)];
         
         dmat2[GINDEX(local.x, local.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
     }
@@ -319,9 +320,6 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
     int traducx[8] = {-1,  0,  1, -1, /*0,*/  1, -1,  0, 1};
     int traducy[8] = {-1, -1, -1,  0, /*0,*/  0,  1,  1, 1};
 
-    //const int oobCheckX[9] = {-1,  127,  nb, -1, 127,  nb, -1,  127, nb};
-    //const int oobCheckY[9] = {-1, -1, -1,  127, 127, 127, nb, nb, nb};
-
     __shared__ half mata[256];
     __shared__ half matb[256];
 
@@ -334,112 +332,90 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
     local.x = blockIdx.x*blockDim.x + threadIdx.x;
     local.y = blockIdx.y*blockDim.y + threadIdx.y;
 
-    int cacheSize = min(BSIZE2D, (int)n);
-
     int tid = blockDim.x*threadIdx.y + threadIdx.x;
-    int wid = tid/WARPSIZE;
+    int haloSideToCopy = tid>>5;
 
-    int haloSideToCopy = BSIZE1D>>5 < 4 ? threadIdx.y : tid>>5;
-    int elementInHaloSide = threadIdx.x;
-    //detectar de que bloque es, traducir el blioque para ver su valor
-
-    //printf("%i, %i  --- > %i, %i\n", local.x, local.y, p.x, p.y);
-
-    //NEW IDEA - Llenar halo con valores traducidos (SE CONSIDERA Q HAY UN HALO GLOBAL!!!)
     if (local.x < nx && local.y < ny)
         cache[CINDEX(threadIdx.x, threadIdx.y)] = dmat1[GINDEX(local.x, local.y, nx)];
-    
-    int lid = tid;
-    //printf("lid: %i\n", lid);
-    //for (int neighbor=wid; neighbor<8; neighbor+=BSIZE1D/WARPSIZE){
-    if (wid < 8){
-        int neighborCoordx = traducx[wid] + p.x;
-        int neighborCoordy = traducy[wid] + p.y;
-        
-        int2 m = getUncompressedCoordinate(neighborCoordx, neighborCoordy, n, nx, nb, rb, inv, WARPSIZE, lid, mata, matb);
-        //printf("%i, %i\n", m.x, m.y);
-        //int2 m = {0,0};
-
-        if (lid <8){
-
-            coords[lid] = (int2){mata[lid<<1], mata[lid<<1+1]};
-
-        }
-            //printf("AAS\n");
-          //  coords[neighbor] = m;
-        //}
-        //if (lid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
-        //    printf("%i: b(%i, %i) con p(%i,%i) -> %i, %i -----> %i, %i\n", neighbor, blockIdx.x, blockIdx.y, p.x, p.y, neighborCoordx, neighborCoordy, coords[neighbor].x, coords[neighbor].y);
-          
-        //}
-    }
-    __syncthreads();
-
     int neighborCoordx;
     int neighborCoordy;
+
+    neighborCoordx = traducx[haloSideToCopy&7] + p.x;
+    neighborCoordy = traducy[haloSideToCopy&7] + p.y;
+
+    inv(neighborCoordx, neighborCoordy, nb, rb, WARPSIZE, tid, mata, matb);
+
+    if (tid <256){
+        coords[haloSideToCopy] = (int2){mata[haloSideToCopy<<1], mata[(haloSideToCopy<<1)+1]};
+    }
+    __syncthreads();
+       /*if (tid ==0 && blockIdx.x == 2 && blockIdx.y == 0){
+            for (int neighbor=0; neighbor<8; neighbor++)
+            printf("%i: b(%i, %i) con p(%i,%i) -> %i, %i -----> %i, %i\n", neighbor, blockIdx.x, blockIdx.y, p.x, p.y, traducx[neighbor] + p.x, traducy[neighbor] + p.y, coords[neighbor].x, coords[neighbor].y);
+        }*/
     // top side
-    if(haloSideToCopy == 0%cacheSize){
-        neighborCoordx = traducx[1] + p.x;
-        neighborCoordy = traducy[1] + p.y;
+    if(haloSideToCopy==0){
+        int neighborCoordx = traducx[1] + p.x;
+        int neighborCoordy = traducy[1] + p.y;
         if (neighborCoordy == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(elementInHaloSide, -1)]         = 0;
+            cache[CINDEX(threadIdx.x, -1)]         = 0;
         } else {
             int2 m = coords[1];
             //printf("top side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
-            m.x = m.x*blockDim.x + elementInHaloSide;
+            m.x = m.x*blockDim.x + threadIdx.x;
             m.y = m.y*blockDim.y + blockDim.y - 1;
-            cache[CINDEX(elementInHaloSide, -1)]         = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(threadIdx.x, -1)]         = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // right side
-    if(haloSideToCopy == 2%cacheSize){
-        neighborCoordx = traducx[4] + p.x;
-        neighborCoordy = traducy[4] + p.y;
+    else if(haloSideToCopy == 1){
+        int neighborCoordx = traducx[4] + p.x;
+        int neighborCoordy = traducy[4] + p.y;
         if (neighborCoordx == nb || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(cacheSize, elementInHaloSide)] = 0;
+            cache[CINDEX(BSIZE2D, threadIdx.x)] = 0;
         } else {
             int2 m = coords[4];
             //printf("right side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
             m.x = m.x*blockDim.x;
-            m.y = m.y*blockDim.y + elementInHaloSide;
-            cache[CINDEX(cacheSize, elementInHaloSide)] = dmat1[ GINDEX(m.x, m.y, nx) ];
+            m.y = m.y*blockDim.y + threadIdx.x;
+            cache[CINDEX(BSIZE2D, threadIdx.x)] = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
 
     }
     // left side
-    if(haloSideToCopy == 3%cacheSize){
-        neighborCoordx = traducx[3] + p.x;
-        neighborCoordy = traducy[3] + p.y;
+    else if(haloSideToCopy == 2){
+        int neighborCoordx = traducx[3] + p.x;
+        int neighborCoordy = traducy[3] + p.y;
         if (neighborCoordx == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(-1, elementInHaloSide)]           = 0;
+            cache[CINDEX(-1, threadIdx.x)]           = 0;
         } else {
             int2 m = coords[3];
-            //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-elementInHaloSide, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
+            //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-threadIdx.x, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
             m.x = m.x*blockDim.x + blockDim.x - 1;
-            m.y = m.y*blockDim.y + elementInHaloSide;
-            cache[CINDEX(-1, elementInHaloSide)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            m.y = m.y*blockDim.y + threadIdx.x;
+            cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // bottom side
-    if(haloSideToCopy == 4%cacheSize){
-        neighborCoordx = traducx[6] + p.x;
-        neighborCoordy = traducy[6] + p.y;
+    else if(haloSideToCopy == 3){
+        int neighborCoordx = traducx[6] + p.x;
+        int neighborCoordy = traducy[6] + p.y;
         if (neighborCoordy == nb || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(elementInHaloSide, cacheSize)] = 0;
+            cache[CINDEX(threadIdx.x, BSIZE2D)] = 0;
         } else {
             int2 m = coords[6];
-            m.x = m.x*blockDim.x + elementInHaloSide;
+            m.x = m.x*blockDim.x + threadIdx.x;
             m.y = m.y*blockDim.y;
             //printf("bottom side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, traducx, traducy, m.x, m.y);
-            cache[CINDEX(elementInHaloSide, cacheSize)] = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(threadIdx.x, BSIZE2D)] = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // local thread 0 in charge of the four corners
     // compartir el valor del bloque traducido al fractal para el warp asi se aprovecha la reduccion y el loglog(n)
-    if(tid == 0){
+    else if(haloSideToCopy == 4){
         // top-left
-        neighborCoordx = traducx[0] + p.x;
-        neighborCoordy = traducy[0] + p.y;
+        int neighborCoordx = traducx[0] + p.x;
+        int neighborCoordy = traducy[0] + p.y;
         if (neighborCoordx == -1 || neighborCoordy == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0){
             cache[CINDEX(-1, -1)]           = 0;
         } else {
@@ -448,43 +424,49 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
             m.y = m.y*blockDim.y + blockDim.y - 1;
             cache[CINDEX(-1, -1)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
-        
+    }   
         // top-right
-        neighborCoordx = traducx[2] + p.x;
-        neighborCoordy = traducy[2] + p.y;
+    else if(haloSideToCopy == 5){
+        int neighborCoordx = traducx[2] + p.x;
+        int neighborCoordy = traducy[2] + p.y;
         if ( neighborCoordx == nb || neighborCoordy == -1 || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(cacheSize, -1)]      = 0;
+            cache[CINDEX(BSIZE2D, -1)]      = 0;
         } else {
             int2 m = coords[2];
             m.x = m.x*blockDim.x;
             m.y = m.y*blockDim.y + blockDim.y - 1;
-            cache[CINDEX(cacheSize, -1)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(BSIZE2D, -1)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
-
+    }
         // bot-left
-        neighborCoordx = traducx[5] + p.x;
-        neighborCoordy = traducy[5] + p.y;
+    else if(haloSideToCopy == 6){
+        int neighborCoordx = traducx[5] + p.x;
+        int neighborCoordy = traducy[5] + p.y;
         if ( neighborCoordx == -1 || neighborCoordy == nb || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(-1, cacheSize)]      = 0;
+            cache[CINDEX(-1, BSIZE2D)]      = 0;
         } else {
             int2 m = coords[5];
             m.x = m.x*blockDim.x + blockDim.x - 1;
             m.y = m.y*blockDim.y;
-            cache[CINDEX(-1, cacheSize)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(-1, BSIZE2D)]      = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
+    }
 
         // bot-right
-        neighborCoordx = traducx[7] + p.x;
-        neighborCoordy = traducy[7] + p.y;
+   else if(haloSideToCopy == 7){
+        int neighborCoordx = traducx[7] + p.x;
+        int neighborCoordy = traducy[7] + p.y;
         if ( neighborCoordx == nb || neighborCoordy == nb || ( neighborCoordx & (nb-1-neighborCoordy)) != 0){
-            cache[CINDEX(cacheSize, cacheSize)] = 0;
+            cache[CINDEX(BSIZE2D, BSIZE2D)] = 0;
         } else {
             int2 m = coords[7];
             m.x = m.x*blockDim.x;
             m.y = m.y*blockDim.y;
-            cache[CINDEX(cacheSize, cacheSize)] = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(BSIZE2D, BSIZE2D)] = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
+    /*__syncthreads();
+    __syncthreads();*/
     /*for (int i=0; i<10000; i++);
     if (tid ==0 && blockIdx.x == 1 && blockIdx.y == 0){
         for (int i=0; i<BSIZE2D+2; i++){
@@ -499,16 +481,14 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
     // transition function applied to state 'c' and written into mat2
     //dmat2[GINDEX(local.x, local.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
     
+    //__syncthreads();
     __syncthreads();
-    int lpx = p.x*blockDim.x + threadIdx.x;
-    int lpy = p.y*blockDim.y + threadIdx.y;
-    __syncthreads();
-    if(lpx < n && lpy < n && (lpx & (n-1-lpy)) == 0){
+    if((threadIdx.x & (BSIZE2D-1-threadIdx.y)) == 0){
         //printf("%i, %i, %i\n", threadIdx.x, threadIdx.y, (int)BSIZE2D);
+        unsigned int c = cache[CINDEX(threadIdx.x, threadIdx.y)];
         int nc =    cache[CINDEX(threadIdx.x-1, threadIdx.y-1)] + cache[CINDEX(threadIdx.x, threadIdx.y-1)] + cache[CINDEX(threadIdx.x+1, threadIdx.y-1)] + 
                     cache[CINDEX(threadIdx.x-1, threadIdx.y  )] +                                             cache[CINDEX(threadIdx.x+1, threadIdx.y  )] + 
                     cache[CINDEX(threadIdx.x-1, threadIdx.y+1)] + cache[CINDEX(threadIdx.x, threadIdx.y+1)] + cache[CINDEX(threadIdx.x+1, threadIdx.y+1)];
-        unsigned int c = cache[CINDEX(threadIdx.x, threadIdx.y)];
         
         dmat2[GINDEX(local.x, local.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
     }
