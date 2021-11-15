@@ -3,7 +3,7 @@ BPOWER=5
 BSIZE1D=1024
 BSIZE2D=32
 RLEVEL=15
-ARCH=sm_80
+ARCH=sm_75
 DEFINES= -D${DEBUG} -DBPOWER=${BPOWER} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -DRLEVEL=${RLEVEL}
 PARAMS=-O3 ${DEFINES} -arch ${ARCH} --std=c++11 --expt-extended-lambda -default-stream per-thread
 SOURCE=src/gpudummy.cu src/main.cu

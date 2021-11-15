@@ -11,6 +11,7 @@
 #include "interface.h"
 #include "kernels.cuh"
 
+#define INNER_REP 10
 using namespace nvcuda;
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
@@ -27,10 +28,14 @@ unsigned int nfract;
 uint2 inv(const size_t xx, const size_t yy, const int nb, const int rb, const int WSIZE);
 uint2 lamb(const size_t x, const size_t y, const int nb, const int rb, const int WSIZE);
 
+
+RunningStat *r;
+
 statistics gpudummy(unsigned int method, unsigned int repeats, double density){
 
-    RunningStat* r;
+    r = new RunningStat();
     statistics stat;
+
     srand(time(NULL));
     WSIZE        = min(BSIZE1D, 32);
     size_t n     = (int)ceil(pow(2, RLEVEL));        // Linear size
@@ -48,16 +53,24 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
 
     switch (method){
         case 1:
-            r = boundingBox(n, nb, rb, density);
+			for (int i=0; i<repeats; i++){
+            	boundingBox(n, nb, rb, density);
+			}
             break;
         case 2:
-            r = lambda(n, nb, rb, density);
+			for (int i=0; i<repeats; i++){
+            	lambda(n, nb, rb, density);
+			}
             break;
         case 3:
-            r = compressed(n, nb, rb, density);
+			for (int i=0; i<repeats; i++){
+            	compressed(n, nb, rb, density);
+			}
             break;
         case 4:
-            r = compressed_tc(n, nb, rb, density);
+			for (int i=0; i<repeats; i++){
+            	compressed_tc(n, nb, rb, density);
+			}
             break;
         default:
             throw "Method not implemented.";
@@ -96,7 +109,7 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
 }
 
 
-RunningStat* boundingBox(size_t n, size_t nb, size_t rb, double density){
+void boundingBox(size_t n, size_t nb, size_t rb, double density){
     MTYPE *mat_h, *mat1_d, *mat2_d;
     // AQUI DEBERIA SER N*N
     /*
@@ -160,10 +173,13 @@ RunningStat* boundingBox(size_t n, size_t nb, size_t rb, double density){
         return m;
     };
     
-    return performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, bbmap, inv);
+    performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, bbmap, inv);
+    gpuErrchk(cudaFree(mat1_d));
+    gpuErrchk(cudaFree(mat2_d));
+	free(mat_h);
 }
 
-RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
+void compressed(size_t n, size_t nb, size_t rb, double density){
     MTYPE *mat_h, *mat1_d, *mat2_d;
 
     dim3 block, grid;
@@ -265,13 +281,17 @@ RunningStat* compressed(size_t n, size_t nb, size_t rb, double density){
         return m;
     };
 
-    return performLoadCompressed(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap, inv);
+    performLoadCompressed(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap, inv);
+    gpuErrchk(cudaFree(mat1_d));
+    gpuErrchk(cudaFree(mat2_d));
+	free(mat_h);
 }
 
-RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
+void compressed_tc(size_t n, size_t nb, size_t rb, double density){
     if (BSIZE2D < 16){
-        printf("Only implemented for 32x32 blockSize.\n");
-        return nullptr;
+
+        //printf("Only implemented for 32x32 blockSize.\n");
+        return;
     }
     MTYPE *mat_h, *mat1_d, *mat2_d;
 
@@ -380,7 +400,6 @@ RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
 
     auto inv_tc = [] __device__ (const int x, const int y, const int nb, const int rb, const int WSIZE, int lid, half* mata, half* matb){
         
-        int2 m;
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
         wmma::fragment<wmma::accumulator, 16, 16, 16, half> c_fragment;
@@ -415,14 +434,16 @@ RunningStat* compressed_tc(size_t n, size_t nb, size_t rb, double density){
             wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
             wmma::store_matrix_sync(mata, c_fragment, 16, wmma::mem_row_major);
         }
-        __syncthreads();
 
-        return m;
     };
     // compressed map
-    return performLoadCompressed_tc(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap_tc, inv_tc);
+    performLoadCompressed_tc(mat_h, mat1_d, mat2_d, nb, rb, nxExtended, nyExtended, block, grid, lambdamap_tc, inv_tc);
+    gpuErrchk(cudaFree(mat1_d));
+    gpuErrchk(cudaFree(mat2_d));
+	free(mat_h);
 }
-RunningStat* lambda(size_t n, size_t nb, size_t rb, double density){
+
+void lambda(size_t n, size_t nb, size_t rb, double density){
 
     MTYPE *mat_h, *mat1_d, *mat2_d;
     size_t cm = (int)pow(3, ceil(RLEVEL/2.0));
@@ -497,11 +518,14 @@ RunningStat* lambda(size_t n, size_t nb, size_t rb, double density){
     };
     psgen(rb, 1<<BPOWER, block, grid);
 
-    return performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, lambdamap, inv);
+    performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, lambdamap, inv);
+    gpuErrchk(cudaFree(mat1_d));
+    gpuErrchk(cudaFree(mat2_d));
+	free(mat_h);
 }
 
 template<typename Lambda, typename Inverse>
-RunningStat* performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+void performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
                             Lambda map, Inverse inv) {
 
 
@@ -510,12 +534,11 @@ RunningStat* performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, 
 	cudaEventCreate(&stop);
 
     // runningstat statistics
-    RunningStat *r = new RunningStat();
     float time = 0.0;
 
     // measure running time
     cudaEventRecord(start, 0);	
-    for(int k=0; k<REPEATS; k++){
+    for(int k=0; k<INNER_REP; k++){
         kernelBoundingBox<<< grid, block >>>(nx-2, ny-2, nb, rb, mat1_d, mat2_d, map, inv, WSIZE);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
@@ -540,7 +563,7 @@ RunningStat* performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, 
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     last_cuda_error("benchmark-check");
 
-    r->Push(time/(1000.0f * 2.f* REPEATS));
+    r->Push(time/(2.f* INNER_REP));
 
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -549,11 +572,10 @@ RunningStat* performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, 
     printf("\x1b[1mok\n\x1b[0m"); fflush(stdout);
 #endif
 
-    return r;
 }
 
 template<typename Lambda, typename Inverse>
-RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+void performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
                             Lambda map, Inverse inv) {
 
 
@@ -562,7 +584,6 @@ RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, s
 	cudaEventCreate(&stop);
 
     // runningstat statistics
-    RunningStat *r = new RunningStat();
     float time = 0.0;
     #ifdef DEBUG
 
@@ -572,7 +593,7 @@ RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, s
 
     // measure running time
     cudaEventRecord(start, 0);	
-    for(int k=0; k<REPEATS; k++){
+    for(int k=0; k<INNER_REP; k++){
         kernelCompressed<<< grid, block >>>(nfract, nx-2, ny-2, nb, rb, mat1_d, mat2_d, map, inv, WSIZE);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
@@ -599,7 +620,7 @@ RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, s
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     last_cuda_error("benchmark-check");
 
-    r->Push(time/(1000.0f * 2.f* REPEATS));
+    r->Push(time/(2.f * INNER_REP));
 
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -608,11 +629,10 @@ RunningStat* performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, s
     printf("\x1b[1mok\n\x1b[0m"); fflush(stdout);
 #endif
 
-    return r;
 }
 
 template<typename Lambda, typename Inverse>
-RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+void performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
                             Lambda map, Inverse inv) {
 
 
@@ -621,7 +641,6 @@ RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d
 	cudaEventCreate(&stop);
 
     // runningstat statistics
-    RunningStat *r = new RunningStat();
     float time = 0.0;
     #ifdef DEBUG
 
@@ -631,7 +650,7 @@ RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d
 
     // measure running time
     cudaEventRecord(start, 0);	
-    for(int k=0; k<REPEATS; k++){
+    for(int k=0; k<INNER_REP; k++){
         kernelCompressed_tc<<< grid, block >>>(nfract, nx-2, ny-2, nb, rb, mat1_d, mat2_d, map, inv, WSIZE);	
         cudaDeviceSynchronize();
         #ifdef DEBUG
@@ -658,7 +677,7 @@ RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d
     cudaEventElapsedTime(&time, start, stop); // that's our time!
     last_cuda_error("benchmark-check");
 
-    r->Push(time/(1000.0f * 2.f* REPEATS));
+    r->Push(time/(2.f * INNER_REP));
 
 	cudaEventDestroy(start);
 	cudaEventDestroy(stop);
@@ -666,7 +685,5 @@ RunningStat* performLoadCompressed_tc(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d
 #ifdef DEBUG
     printf("\x1b[1mok\n\x1b[0m"); fflush(stdout);
 #endif
-
-    return r;
 }
 

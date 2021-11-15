@@ -2,10 +2,10 @@
 #define INTERFACE_H
 
 typedef struct{
-    float mean;
-    float variance;
-    float stdev;
-    float sterr;
+    double mean;
+    double variance;
+    double stdev;
+    double sterr;
 } statistics;
 
 

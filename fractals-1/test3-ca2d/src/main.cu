@@ -37,5 +37,6 @@ int main(int argc, char **argv){
     printf("\x1b[0m"); fflush(stdout);
 #endif
 
-    printf("%f\n", stat.mean); fflush(stdout);
+    printf("%i %f %f %f %f ", method, stat.mean, stat.variance, stat.stdev, stat.sterr);
+    return 0;
 }

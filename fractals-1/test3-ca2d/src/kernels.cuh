@@ -181,13 +181,15 @@ __global__ void kernelCompressed(const size_t n, const size_t nx, const size_t n
         int neighborCoordx = traducx[3] + p.x;
         int neighborCoordy = traducy[3] + p.y;
         if (neighborCoordx == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(-1, threadIdx.x)]           = 0;
+            //cache[CINDEX(-1, threadIdx.x)]           = 0;
+            cache[CINDEX(0, threadIdx.x) - 1]           = 0;
         } else {
             int2 m = coords[3];
             //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-threadIdx.x, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
             m.x = m.x*blockDim.x + blockDim.x - 1;
             m.y = m.y*blockDim.y + threadIdx.x;
-            cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(0, threadIdx.x)-1]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            //cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // bottom side
@@ -345,6 +347,7 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
 
     inv(neighborCoordx, neighborCoordy, nb, rb, WARPSIZE, tid, mata, matb);
 
+    __syncthreads();
     if (tid <256){
         coords[haloSideToCopy] = (int2){mata[haloSideToCopy<<1], mata[(haloSideToCopy<<1)+1]};
     }
@@ -387,13 +390,15 @@ __global__ void kernelCompressed_tc(const size_t n, const size_t nx, const size_
         int neighborCoordx = traducx[3] + p.x;
         int neighborCoordy = traducy[3] + p.y;
         if (neighborCoordx == -1 || (neighborCoordx & (nb-1-neighborCoordy)) != 0) {
-            cache[CINDEX(-1, threadIdx.x)]           = 0;
+            //cache[CINDEX(-1, threadIdx.x)]           = 0;
+            cache[CINDEX(0, threadIdx.x)-1]           = 0;
         } else {
             int2 m = coords[3];
             //printf("left side tx: %i ty: %i | px: %i, py: %i - (%i, %i) -> %i,%i\n", threadIdx.x, threadIdx.y, p.x, p.y, p.x-1-threadIdx.x, p.y-threadIdx.y+elementInHaloSide, m.x, m.y);
             m.x = m.x*blockDim.x + blockDim.x - 1;
             m.y = m.y*blockDim.y + threadIdx.x;
-            cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            //cache[CINDEX(-1, threadIdx.x)]           = dmat1[ GINDEX(m.x, m.y, nx) ];
+            cache[CINDEX(0, threadIdx.x)-1]           = dmat1[ GINDEX(m.x, m.y, nx) ];
         }
     }
     // bottom side

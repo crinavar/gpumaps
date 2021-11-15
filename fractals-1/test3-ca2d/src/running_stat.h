@@ -31,7 +31,7 @@ public:
         return (m_n > 0) ? m_newM : 0.0;
     }
     double Variance() const{
-        return ( (m_n > 1) ? m_newS/(m_n - 1) : 0.0 );
+        return ( (m_n > 1) ? m_newS/(m_n - 1.0) : 0.0 );
     }
     double StandardDeviation() const{
         return sqrt( Variance() );
