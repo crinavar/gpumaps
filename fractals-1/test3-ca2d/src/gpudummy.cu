@@ -90,7 +90,7 @@ statistics gpudummy(unsigned int method, unsigned int repeats, double density){
     printf("ok\n\n"); fflush(stdout);
 #endif
 
-    if (r == nullptr){
+    if (r->NumDataValues() == 0){
         stat.mean = 0;
         stat.variance = 0;
         stat.stdev = 0;
@@ -487,6 +487,58 @@ void lambda(size_t n, size_t nb, size_t rb, double density){
         g = dim3((int)pow(3, ceil(rb/2.0)), (int)pow(3, floor(rb/2.0)), 1); 
     };
 
+    auto lambdamap_tc = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
+        
+        __shared__ uint2 m;
+
+        wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
+        wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
+        wmma::fragment<wmma::accumulator, 16, 16, 16, half> c_fragment;
+
+        auto beta = [] __device__ (const int nb, const int u){
+            int b = (int)((blockIdx.x*(u & 1) + blockIdx.y*((u+1) & 1))/(pow3((u>>1) + (u&1) - 1)))%3;
+            return b;
+        };
+        
+        int lid = threadIdx.x + threadIdx.y*blockDim.x;
+        int index = lid;
+
+        if (lid < 32) {
+            //Has to be resetted to 0. Latter kernel calls were getting weird values
+            matb[lid] = 0;
+            if (lid < rb){
+                mata[lid] = 1 << lid;
+            }
+        } else {
+            lid -= 32;
+            if (lid < rb<<1){
+                char column = lid/rb;
+                //lid = lid%rb;
+                lid = lid-rb*column;
+                char b = beta(nb, lid+1);
+                int lm = ((b-(b >> 1))*(column & 1) + (b >> 1)*((column+1) & 1));
+                matb[lid + column*16] = lm;
+            }
+        } 
+
+        __syncthreads();
+        if (index < 32) {
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+        
+            wmma::load_matrix_sync(b_fragment, &matb[0], 16);
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+        }
+
+        __syncthreads();
+        if (index == 0){
+            m = (uint2){(int)(c_fragment.x[0]), (int)(c_fragment.x[1])};
+        }
+
+        __syncthreads();
+
+        return (uint2){m.x * blockDim.x + threadIdx.x, m.y * blockDim.y + threadIdx.y};
+    };
+
     // lambda map
     auto lambdamap = [] __device__ (const int nb, const int rb, const int WSIZE, half* mata, half* matb){
         __shared__ int2 m;
@@ -518,7 +570,13 @@ void lambda(size_t n, size_t nb, size_t rb, double density){
     };
     psgen(rb, 1<<BPOWER, block, grid);
 
-    performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, lambdamap, inv);
+    if (BPOWER>=4){
+
+        performLoadLambdaTC(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, lambdamap_tc, inv);
+    } else {
+        performLoad(mat_h, mat1_d, mat2_d, nb, rb, nExtended, nExtended, block, grid, lambdamap, inv);
+
+    }
     gpuErrchk(cudaFree(mat1_d));
     gpuErrchk(cudaFree(mat2_d));
 	free(mat_h);
@@ -574,6 +632,55 @@ void performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t r
 
 }
 
+template<typename Lambda, typename Inverse>
+void performLoadLambdaTC(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+                            Lambda map, Inverse inv) {
+
+
+	cudaEvent_t start, stop;
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+
+    // runningstat statistics
+    float time = 0.0;
+
+    // measure running time
+    cudaEventRecord(start, 0);	
+    for(int k=0; k<INNER_REP; k++){
+        kernelLambdaTC<<< grid, block >>>(nx-2, ny-2, nb, rb, mat1_d, mat2_d, map, inv, WSIZE);	
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            printf("result ping\n");
+            print_dmat_gpu(PRINTLIMIT, RLEVEL, nx, ny, mat_h, mat2_d, "");
+            getchar();
+        #endif
+
+        kernelLambdaTC<<< grid, block >>>(nx-2, ny-2, nb, rb, mat2_d, mat1_d, map, inv, WSIZE);	
+        cudaDeviceSynchronize();
+        #ifdef DEBUG
+            printf("result pong\n");
+            print_dmat_gpu(PRINTLIMIT, RLEVEL, nx, ny, mat_h, mat1_d, "");
+            getchar();
+        #endif
+    }
+#ifdef DEBUG
+    printf("done\n"); fflush(stdout);
+#endif
+    cudaEventRecord(stop,0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop); // that's our time!
+    last_cuda_error("benchmark-check");
+
+    r->Push(time/(2.f* INNER_REP));
+
+	cudaEventDestroy(start);
+	cudaEventDestroy(stop);
+    last_cuda_error("benchmark-check");
+#ifdef DEBUG
+    printf("\x1b[1mok\n\x1b[0m"); fflush(stdout);
+#endif
+
+}
 template<typename Lambda, typename Inverse>
 void performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
                             Lambda map, Inverse inv) {

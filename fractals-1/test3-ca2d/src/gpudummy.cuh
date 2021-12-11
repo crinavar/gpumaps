@@ -20,6 +20,9 @@ void lambda(size_t n, size_t nb, size_t rb, double density);
 template<typename Lambda, typename Inverse>
 void performLoad(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
                             Lambda map, Inverse inv);
+template<typename Lambda, typename Inverse>
+void performLoadLambdaTC(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,
+                            Lambda map, Inverse inv);
                             
 template<typename Lambda, typename Inverse>
 void performLoadCompressed(MTYPE *mat_h, MTYPE *mat1_d, MTYPE *mat2_d, size_t nb, size_t rb, size_t nx, size_t ny, dim3 block, dim3 grid,

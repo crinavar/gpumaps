@@ -28,6 +28,62 @@ __device__ void work_nocache(MTYPE *data, MTYPE *mat1, MTYPE *mat2, uint2 p, int
     // transition function applied to state 'c' and written into mat2
     mat2[GINDEX(p.x, p.y, n)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
 }
+template<typename Lambda, typename Inverse>
+__global__ void kernelLambdaTC(const size_t nx, const size_t ny, const size_t nb, const size_t rb, MTYPE *dmat1, MTYPE *dmat2, Lambda map, Inverse inv, const int WARPSIZE){
+
+    //__shared__ MTYPE cache[(BSIZE2D+2)*(BSIZE2D+2)];
+
+    __shared__ half mata[256];
+    __shared__ half matb[256];
+    auto p = map(nb, rb, WARPSIZE, mata, matb);
+    /*const uint3 lp = threadIdx;
+    if(p.x < nx && p.y < ny){
+        cache[CINDEX(threadIdx.x, threadIdx.y)] = dmat1[GINDEX(p.x, p.y, nx)];
+
+        if(lp.x == 0){
+            cache[CINDEX(lp.x - 1, lp.y)]      = dmat1[ GINDEX(p.x-1, p.y, nx) ];
+        }
+        // right side
+        if(lp.x == BSIZE2D-1){
+            cache[CINDEX(lp.x + 1, lp.y)]      = dmat1[ GINDEX(p.x+1, p.y, nx) ];
+        }
+        // bottom side
+        if(lp.y == BSIZE2D-1){
+            cache[CINDEX(lp.x, lp.y + 1)]      = dmat1[ GINDEX(p.x, p.y+1, nx) ];
+        }
+        // top side
+        if(lp.y == 0){
+            cache[CINDEX(lp.x, lp.y - 1)]      = dmat1[ GINDEX(p.x, p.y-1, nx) ];
+        }
+        // local thread 0 in charge of the four corners
+        if(lp.x + lp.y == 0){
+            // top-left
+            cache[CINDEX(-1, -1)]           = dmat1[ GINDEX(p.x-1, p.y-1, nx) ];
+            // top-right
+            cache[CINDEX(BSIZE2D, -1)]      = dmat1[ GINDEX(p.x + BSIZE2D, p.y - 1, nx) ];
+            // bot-lefj
+            cache[CINDEX(-1, BSIZE2D)]      = dmat1[ GINDEX(p.x-1, p.y + (BSIZE2D), nx) ];
+            // bot-right
+            cache[CINDEX(BSIZE2D, BSIZE2D)] = dmat1[ GINDEX(p.x + BSIZE2D, p.y + BSIZE2D, nx) ];
+        }
+    }*/
+    //__syncthreads();
+
+
+    if(p.x < nx && p.y < ny && (p.x & (nx-1-p.y)) == 0){
+
+        /*int nc =    cache[CINDEX(lp.x-1, lp.y-1)] + cache[CINDEX(lp.x, lp.y-1)] + cache[CINDEX(lp.x+1, lp.y-1)] + 
+                    cache[CINDEX(lp.x-1, lp.y  )] +                               cache[CINDEX(lp.x+1, lp.y  )] + 
+                    cache[CINDEX(lp.x-1, lp.y+1)] + cache[CINDEX(lp.x, lp.y+1)] + cache[CINDEX(lp.x+1, lp.y+1)];
+        unsigned int c = cache[CINDEX(lp.x, lp.y)];
+        dmat2[GINDEX(p.x, p.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);*/
+        int nc = dmat1[GINDEX(p.x-1, p.y-1, nx)] + dmat1[GINDEX(p.x, p.y-1, nx)] + dmat1[GINDEX(p.x+1, p.y-1, nx)] + 
+                 dmat1[GINDEX(p.x-1, p.y,   nx)] +                                 dmat1[GINDEX(p.x+1, p.y,   nx)] + 
+                 dmat1[GINDEX(p.x-1, p.y+1, nx)] + dmat1[GINDEX(p.x, p.y+1, nx)] + dmat1[GINDEX(p.x+1, p.y+1, nx)];
+        unsigned int c = dmat1[GINDEX(p.x, p.y, nx)];
+        dmat2[GINDEX(p.x, p.y, nx)] = c*h(nc, EL, EU) + (1-c)*h(nc, FL, FU);
+    }
+}
 
 template<typename Lambda, typename Inverse>
 __global__ void kernelBoundingBox(const size_t nx, const size_t ny, const size_t nb, const size_t rb, MTYPE *dmat1, MTYPE *dmat2, Lambda map, Inverse inv, const int WARPSIZE){
