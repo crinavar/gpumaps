@@ -182,9 +182,12 @@ void init(unsigned long no, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **
     // mostrar justo
     unsigned long n = no;
 #endif
+    // Matrix num elements
 	*msize = n*n;
+    // Lower Matrix num. elements
     *trisize = n*(n-1)/2;
 	
+    // ???
 	*hdata = (DTYPE*)malloc(sizeof(DTYPE)*n);
 	*hmat = (MTYPE*)malloc(sizeof(MTYPE)*(*msize));
     for(int i=0; i<*msize; i++){
@@ -212,6 +215,7 @@ void gen_lambda_pspace(const unsigned int n, dim3 &block, dim3 &grid){
 	int sn = (n+block.x-1)/block.x;
 	int sd = sn*(sn+1)/2;
 	int s = ceil(sqrt((double)sd));	
+    printf("%i\n", s);
    	grid = dim3(s, s, 1);
 }
 

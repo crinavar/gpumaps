@@ -198,9 +198,15 @@ double hadouken(const unsigned long n, const unsigned int REPEATS){
 #endif
 }
 
-double hadouken_tc(const unsigned long n, const unsigned int REPEATS){
+double tensorCoreHadouken(const unsigned long n, const unsigned int REPEATS){
+    if (BSIZE2D != 32){
 #ifdef DEBUG
-    printf("[Hadouken_tc]\n");
+        printf("Map only available for 32x32 blocks\n");
+#endif
+        return 0;
+    }
+#ifdef DEBUG
+    printf("[Tensor Core Hadouken]\n");
 #endif
     DTYPE *hdata, *ddata;
     MTYPE *hmat, *dmat;
@@ -208,7 +214,7 @@ double hadouken_tc(const unsigned long n, const unsigned int REPEATS){
     dim3 block(BSIZE2D, BSIZE2D);
     init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);	
 #ifdef DEBUG
-    printf("gen_hadouken_pspace(%i, ...)\n", n);
+    printf("gen_tensor_core_hadouken_pspace(%i, ...)\n", n);
 #endif
     // trapezoid map
     // program tensor core map assuming 32x32 block (split in groups of four 16x16 MMAs)
