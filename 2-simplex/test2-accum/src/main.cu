@@ -21,28 +21,33 @@
 //  along with gpumaps.  If not, see <http://www.gnu.org/licenses/>.            //
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
-#include <stdio.h>
-#include <cuda.h>
-#include <time.h>
-#include <sys/time.h>
 #include "gputools.cuh"
 #include "kernels.cuh"
+
 #include "gpubenchmarks.cuh"
+#include <cuda.h>
+#include <stdio.h>
+#include <sys/time.h>
+#include <time.h>
 
 // main routine that executes on the host
-int main(int argc, char **argv){
-	//srand ( time(NULL) );
-	if(argc != 5){
-		printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 trapezoid\n\n");
-		exit(EXIT_FAILURE);
-	}
+int main(int argc, char** argv) {
+    // srand ( time(NULL) );
+    if (argc != 5) {
+        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n5 tensor core-hadouken\n\n");
+        exit(EXIT_FAILURE);
+    }
     unsigned int dev = atoi(argv[1]);
     unsigned int n = atoi(argv[2]);
     unsigned int REPEATS = atoi(argv[3]);
     unsigned int method = atoi(argv[4]);
-    if(method > 4 || method == 0){
-		printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 trapezoid\n\n");
-		exit(EXIT_FAILURE);
+    if (method > 5 || method == 0) {
+        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n5 tensor core-hadouken\n\n");
+        exit(EXIT_FAILURE);
+    }
+    if (method == 5 && (SUBBLOCK_SIZE != 16 && SUBBLOCK_SIZE != 8)) {
+        printf("Only 8 and 16 sub block sizes are supported for Tensor Core Hadouken");
+        exit(EXIT_FAILURE);
     }
     cudaSetDevice(dev);
 #ifdef DEBUG
@@ -50,19 +55,22 @@ int main(int argc, char **argv){
 #endif
     last_cuda_error("cudaSetDevice");
     double time;
-    switch(method){
-        case 1:
-	        time = bbox(n, REPEATS);
-            break;
-        case 2:
-            time = lambda(n, REPEATS);
-            break;
-        case 3:
-            time = rectangle(n, REPEATS);
-            break;
-        case 4:
-            time = hadouken(n, REPEATS);
-            break;
+    switch (method) {
+    case 1:
+        time = bbox(n, REPEATS);
+        break;
+    case 2:
+        time = lambda(n, REPEATS);
+        break;
+    case 3:
+        time = rectangle(n, REPEATS);
+        break;
+    case 4:
+        time = hadouken(n, REPEATS);
+        break;
+    case 5:
+        time = hadouken_tensor_core(n, REPEATS);
+        break;
     }
     printf("%f\n", time);
 }
