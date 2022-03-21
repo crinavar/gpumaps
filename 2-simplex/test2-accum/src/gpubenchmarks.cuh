@@ -217,14 +217,14 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
 #endif
     // trapezoid map
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
-        /*__shared__ half mata[256];
+        __shared__ half mata[256];
         __shared__ half matb[256];
         __shared__ float matc[256];
 
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
         wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
-*/
+
         int tid = threadIdx.x + blockDim.x * threadIdx.y;
         int subBlocksPerGPUblock_x = 32 >> SUBBLOCK_EXP;
         // 1024 threads available, 32 warps
