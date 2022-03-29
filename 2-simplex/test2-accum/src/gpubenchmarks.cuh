@@ -220,15 +220,18 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
         __shared__ half mata[256];
         __shared__ half matb[256];
         __shared__ float matc[256];
+        uint2 m;
 
         wmma::fragment<wmma::matrix_a, 16, 16, 16, half, wmma::row_major> a_fragment;
         wmma::fragment<wmma::matrix_b, 16, 16, 16, half, wmma::col_major> b_fragment;
         wmma::fragment<wmma::accumulator, 16, 16, 16, float> c_fragment;
+        // wmma::fill_fragment(a_fragment, 0.f);
+        // wmma::fill_fragment(b_fragment, 0.f);
 
         int tid = threadIdx.x + blockDim.x * threadIdx.y;
         int subBlocksPerGPUblock_x = 32 >> SUBBLOCK_EXP;
         // 1024 threads available, 32 warps
-        // int subBlockId = threadIdx.y / (SUBBLOCK_SIZE**2/32)
+        // int subBlockId = threadIdx.y / (SUBBLOCK_SIZE * SUBBLOCK_SIZE / 32);
         int subBlockId = threadIdx.y >> ((SUBBLOCK_EXP << 1) - 5);
 
         int inner_coord_x = subBlockId & (subBlocksPerGPUblock_x - 1);
@@ -240,13 +243,121 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
         if (subBlockIdx_x >= subBlockGridSizex || subBlockIdx_y >= subBlockGridSizey) {
             return (uint2) { 1, 0 };
         }
-
         int elementsPerSubBlock = 1024 / (subBlocksPerGPUblock_x * subBlocksPerGPUblock_x);
         int subBlocktid = tid & (elementsPerSubBlock - 1);
+
         int subBlockThreadIdx_x = subBlocktid & (SUBBLOCK_SIZE - 1);
         int subBlockThreadIdx_y = subBlocktid >> SUBBLOCK_EXP;
 
-        // if (tid <)
+        int warpId = tid >> 5;
+
+        if (subBlocktid < 64) {
+            // if (subBlocktid == 0) {
+            //     printf("\nsubblock id %i\n", subBlockId);
+            // }
+
+            // THIS WARP WRITES MATRIX B
+            if (subBlocktid < 32) {
+                const unsigned int h = WORDLEN - __clz(subBlockIdx_y + 1);
+                const unsigned int b = (1 << h);
+                // const unsigned int k = (aux1 - (int)subBlockIdx_y) >> 31;
+                // if (subBlocktid == 0) {
+                //    printf("Subblockid: %i, warpid: %i\n", subBlockId, warpId);
+                //}
+
+                // FIRST HALF OF ROWS FOR X VALUES
+                // matb[subBlockId] = subBlockIdx_x;
+                // matb[subBlockId + 16] = b;
+
+                // SECOND HALF OF ROWS FOR Y VALUES
+                matb[subBlockId * 32 + 0] = subBlockIdx_x;
+                matb[subBlockId * 32 + 1] = b;
+
+                matb[subBlockId * 32 + 16 + 0] = subBlockIdx_y;
+                matb[subBlockId * 32 + 16 + 1] = 2 * b;
+                // mata[subBlockId * 32 + 2] = k & subBlockGridSizex;
+                // const unsigned int q = (subBlockIdx_x >> h);
+                // matb[subBlockId * 32 + 0] = 1;
+                // matb[subBlockId * 32 + 1] = q;
+                // matb[subBlockId * 32 + 2] = 1;
+
+                // aux3 + (subBlockIdx_x + qb) * SUBBLOCK_SIZE + subBlockThreadIdx_x
+
+                // THIS WARP WRITES MATRIX A
+            } else {
+                const unsigned int h = WORDLEN - __clz(subBlockIdx_y + 1);
+                // const unsigned int k = (aux1 - (int)subBlockIdx_y) >> 31;
+                // if (subBlocktid == 0) {
+                //    printf("Subblockid: %i, warpid: %i\n", subBlockId, warpId);
+                //}
+                // mata[subBlockId * 32 + 16 + 0] = subBlockIdx_y;
+                // mata[subBlockId * 32 + 16 + 1] = b2;
+                // mata[subBlockId * 32 + 16 + 2] = -(k & aux2);
+                const unsigned int q = (subBlockIdx_x >> h);
+                // FIRST HALF OF ROWS FOR X VALUES
+
+                mata[subBlockId * 16 + 0] = 1;
+                mata[subBlockId * 16 + 1] = q;
+
+                // SECOND HALF OF ROWS FOR Y VALUES
+                // matb[subBlockId * 16 + 128 + 0] = 1;
+                // matb[subBlockId * 16 + 128 + 1] = q;
+                //  matb[subBlockId * 32 + 16 + 2] = 1;
+                //   (blockIdx.y - (k & aux2) + (qb << 1)) * blockDim.x + aux3 + threadIdx.y
+            }
+        }
+
+        __syncthreads();
+
+        if (warpId == 0) {
+            wmma::fill_fragment(c_fragment, 0.f);
+
+            wmma::load_matrix_sync(a_fragment, &mata[0], 16);
+
+            wmma::load_matrix_sync(b_fragment, &matb[0], 16);
+            wmma::mma_sync(c_fragment, a_fragment, b_fragment, c_fragment);
+            wmma::store_matrix_sync(matc, c_fragment, 16, wmma::mem_row_major);
+        }
+        __syncthreads();
+
+        m = (uint2) { (int)(matc[subBlockId * 16 + subBlockId * 2]), (int)(matc[subBlockId * 16 + subBlockId * 2 + 1]) };
+
+        /*if (tid == 0 && blockIdx.x + blockIdx.y == 0) {
+            printf("\nMATRIX A\n");
+
+            for (int i = 0; i < 16; i++) {
+                for (int j = 0; j < 16; j++) {
+                    printf("%.0f ", (float)mata[i * 16 + j]);
+                }
+                printf("\n");
+            }
+
+            printf("\nMATRIX B\n");
+
+            for (int i = 0; i < 16; i++) {
+                for (int j = 0; j < 16; j++) {
+                    printf("%.0f ", (float)matb[i * 16 + j]);
+                }
+                printf("\n");
+            }
+
+            printf("\nMATRIX C\n");
+
+            for (int i = 0; i < 16; i++) {
+                for (int j = 0; j < 16; j++) {
+                    printf("%.0f ", (float)matc[i * 16 + j]);
+                }
+                printf("\n");
+            }
+        }
+*/
+        //__syncthreads();
+        if (aux1 >= subBlockIdx_y) {
+
+            return (uint2) { m.x * SUBBLOCK_SIZE + aux3 + subBlockThreadIdx_x, m.y * SUBBLOCK_SIZE + aux3 + subBlockThreadIdx_y };
+        } else {
+            return (uint2) { aux3 + (subBlockIdx_x + subBlockGridSizex) * SUBBLOCK_SIZE + subBlockThreadIdx_x, aux3 + (subBlockIdx_y - aux2) * SUBBLOCK_SIZE + subBlockThreadIdx_y };
+        }
 
         // (1) optimzized version: just arithmetic and bit-level operations
         /*
@@ -265,8 +376,8 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
         */
 
         // (3) simple version: no programming tricks
-
         if (aux1 >= subBlockIdx_y) {
+
             const unsigned int h = WORDLEN - __clz(subBlockIdx_y + 1);
             const unsigned int qb = (subBlockIdx_x >> h) * (1 << h);
             return (uint2) { aux3 + (subBlockIdx_x + qb) * SUBBLOCK_SIZE + subBlockThreadIdx_x, aux3 + (subBlockIdx_y + (qb << 1)) * SUBBLOCK_SIZE + subBlockThreadIdx_y };
