@@ -23,7 +23,9 @@ int main(int argc, char** argv) {
     uint32_t mapType = atoi(argv[4]);
 
     Simplex3DRegular* benchmark = new Simplex3DRegular(deviceId, powerOfTwoSize, mapType);
-    benchmark->init();
+    if (!benchmark->init()) {
+        exit(1);
+    }
     float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
     benchmark->printDeviceData();
     // StatsCollector<float> times = prepareAndPerformBenchmark(deviceId, powerOfTwo, repeats, mapType);

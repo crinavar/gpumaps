@@ -22,7 +22,7 @@ TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
 ARCH=-arch sm_86
 CCOBJFLAGS=-DBSIZE3DX=${BSIZE3DX} -DBSIZE3DY=${BSIZE3DY} -DBSIZE3DZ=${BSIZE3DZ} -O3
 DBGDEFINES := -DDEBUG -DVERIFY
-NVCCFLAGS=${ARCH} --expt-extended-lambda
+NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda
 #NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 ${ARCH} --expt-extended-lambda --ptxas-options=-v
 
 CCFLAGS=${COMPILER_DEFINES}
@@ -39,17 +39,17 @@ DBG_CUDA_OBJ := $(addprefix $(DBG_PATH)/, $(addsuffix .o, $(notdir $(basename $(
 default: makedir all
 
 $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp
-	$(CC) $(CCOBJFLAGS) -o $@ $<
+	$(CC) $(CCFLAGS) $(CCOBJFLAGS) -c -o $@ $<
 
 $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cu
-	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) -o $@ $<
+	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) -c -o $@ $<
 
 
 $(DBG_PATH)/%.o: $(SRC_PATH)/%.cpp
-	$(CC) $(CCOBJFLAGS) $(DBGDEFINES) -o $@ $<
+	$(CC) $(CCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -c -o $@ $<
 
 $(DBG_PATH)/%.o: $(SRC_PATH)/%.cu
-	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -o $@ $<
+	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -c -o $@ $<
 
 
 $(TARGET): $(OBJ) $(CUDA_OBJ)
@@ -62,7 +62,7 @@ $(TARGET_DEBUG) : $(DBG_OBJ) $(DBG_CUDA_OBJ)
 # phony rules
 .PHONY: makedir
 makedir:
-	@mkdir -p $(BIN_PATH) $(OBJ_PATH)
+	@mkdir -p $(BIN_PATH) $(OBJ_PATH) $(DBG_PATH)
 
 .PHONY: debug
 debug: $(TARGET_DEBUG)
@@ -72,10 +72,10 @@ all: $(TARGET)
 
 .PHONY: clean
 clean:
-	rm $(DBG_PATH)\*.o
-	rm $(OBJ_PATH)\*.o
-	rm $(TARGET)
-	rm $(TARGET_DEBUG)
+	@rm $(DBG_PATH)/*
+	@rm $(OBJ_PATH)/*
+	@rm $(TARGET)
+	@rm $(TARGET_DEBUG)
 
 
 

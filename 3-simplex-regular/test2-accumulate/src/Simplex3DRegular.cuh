@@ -12,9 +12,6 @@
 // Lazy Fix
 #define MTYPE uint32_t
 
-#include "GPUKernels.cuh"
-#include "GPUTools.cuh"
-
 #define CL 0.4807498567691361274405461035933f
 #define CR 0.6933612743506347048433522747859f
 

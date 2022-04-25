@@ -1,5 +1,8 @@
 #include "Simplex3DRegular.cuh"
 
+#include "GPUKernels.cuh"
+#include "GPUTools.cuh"
+
 #define OFFSET -0.4999f
 //#define OFFSET 0.0f
 #define REAL float
@@ -46,7 +49,7 @@ void Simplex3DRegular::freeMemory() {
 }
 
 bool Simplex3DRegular::isMapTypeImplemented() {
-    return mapType == MapType::NOT_IMPLEMENTED;
+    return mapType != MapType::NOT_IMPLEMENTED;
 }
 
 bool Simplex3DRegular::init() {
@@ -69,7 +72,7 @@ bool Simplex3DRegular::init() {
     printf("init(): memory allocated.\n");
 #endif
     if (!isMapTypeImplemented()) {
-        printf("ERROR: Map type \"%i\" not implemented! init failed\n", this->mapType);
+        printf("ERROR: Map type not implemented! init failed\n");
         this->freeMemory();
         return false;
     }
