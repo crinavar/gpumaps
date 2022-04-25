@@ -1,16 +1,16 @@
-#ifndef TOOLS_CUH
-#define TOOLS_CUH
+#pragma once
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true){
-    if (code != cudaSuccess){
-        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort) 
+#define gpuErrchk(ans) \
+    { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true) {
+    if (code != cudaSuccess) {
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort)
             exit(code);
     }
 }
 
-
+/*
 void printcube(float *d, const unsigned long n);
 
 // verifica el tetrahedro inscrito en un cubo de N^3 datos
@@ -68,3 +68,4 @@ void printcube_coords(char *d, const unsigned long n){
     }
 }
 #endif
+*/

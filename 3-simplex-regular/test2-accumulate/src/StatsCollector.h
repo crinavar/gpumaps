@@ -14,6 +14,8 @@ class StatsCollector {
     float variance;
 
 public:
+    StatsCollector();
+
     void add(T val);
     float getAverage();
     float getStandardDeviation();

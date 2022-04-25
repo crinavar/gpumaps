@@ -1,13 +1,4 @@
 #include "Simplex3DRegular.cuh"
-#include "StatsCollector.h"
-#include "kernels.cuh"
-#include "tools.cuh"
-#include <cassert>
-#include <cuda.h>
-#include <stdio.h>
-#include <sys/time.h>
-#include <time.h>
-#include <vector>
 
 #define OFFSET -0.4999f
 //#define OFFSET 0.0f
@@ -20,19 +11,28 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
     this->n = 1 << powerOfTwoSize;
     this->nElementsCube = n * n * n;
     this->nElementsSimplex = n * (n + 1) * (n + 2) / 6;
-
-    this->mapType = static_cast<MapType>(mapType);
+    if (maptype < 3) {
+        this->mapType = static_cast<MapType>(mapType);
+    } else {
+        this->mapType = MapType::NOT_IMPLEMENTED;
+    }
 
     this->hasBeenAllocated = false;
+}
+
+Simplex3DRegular::~Simplex3DRegular() {
+    if (this->hasBeenAllocated) {
+        freeMemory();
+    }
 }
 
 void Simplex3DRegular::allocateMemory() {
     if (this->hasBeenAllocated) {
         printf("Memory already allocated.\n");
-        return
+        return;
     }
     this->hostData = (MTYPE*)malloc(sizeof(MTYPE) * this->nElementsCube);
-    cudaMalloc(&d_outcube, sizeof(char) * Vcube);
+    cudaMalloc(&devData, sizeof(MTYPE) * nElementsCube);
     gpuErrchk(cudaPeekAtLastError());
     this->hasBeenAllocated = true;
 }
@@ -44,17 +44,18 @@ void Simplex3DRegular::freeMemory() {
     gpuErrchk(cudaPeekAtLastError());
     this->hasBeenAllocated = false;
 }
+
 bool Simplex3DRegular::isMapTypeImplemented() {
-    return mapType < 3;
+    return mapType == MapType::NOT_IMPLEMENTED;
 }
 
 bool Simplex3DRegular::init() {
 
 #ifdef DEBUG
-    printf("init(): choosing device %i...", D);
+    printf("init(): choosing device %i...", this->deviceId);
     fflush(stdout);
 #endif
-    gpuErrchk(cudaSetDevice(D));
+    gpuErrchk(cudaSetDevice(this->deviceId));
 #ifdef DEBUG
     printf("ok\n");
     fflush(stdout);
@@ -79,21 +80,21 @@ bool Simplex3DRegular::init() {
 
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
-        this->block = dim3(BSIZE3D, BSIZE3D, BSIZE3D);
-        this->grid = dim3((n + block.x - 1) / block.x, (n + block.y - 1) / block.y, (n + block.z - 1) / block.z);
+        this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+        this->GPUGrid = dim3((n + GPUBlock.x - 1) / GPUBlock.x, (n + GPUBlock.y - 1) / GPUBlock.y, (n + GPUBlock.z - 1) / GPUBlock.z);
         break;
     case MapType::HADOUKEN:
-        this->block = dim3(BSIZE3D, BSIZE3D, BSIZE3D);
-        this->grid = dim3((n / 2 + block.x - 1) / block.x, (n / 2 + block.y - 1) / block.y, (3 * (n - 1) / 4 + block.z - 1) / block.z);
+        this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+        this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (3 * (n - 1) / 4 + GPUBlock.z - 1) / GPUBlock.z);
         break;
     case MapType::DYNAMIC_PARALLELISM:
-        this->block = dim3(BSIZE3D, BSIZE3D, BSIZE3D);
-        this->grid = dim3((n + block.x - 1) / block.x, (n + block.y - 1) / block.y, (n + block.z - 1) / block.z);
+        this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+        this->GPUGrid = dim3((n + GPUBlock.x - 1) / GPUBlock.x, (n + GPUBlock.y - 1) / GPUBlock.y, (n + GPUBlock.z - 1) / GPUBlock.z);
         break;
     }
 
 #ifdef DEBUG
-    printf("init(): parallel space: b(%i, %i, %i) g(%i, %i, %i)\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+    printf("init(): parallel space: b(%i, %i, %i) g(%i, %i, %i)\n", GPUBlock.x, GPUBlock.y, GPUBlock.z, GPUGrid.x, GPUGrid.y, GPUGrid.z);
     fflush(stdout);
 #endif
 
@@ -106,6 +107,15 @@ bool Simplex3DRegular::init() {
 #ifdef DEBUG
     printf("init(): done.\n");
 #endif
+
+#ifdef DEBUG
+    printf("init(): Transfering data to device.\n");
+#endif
+    this->transferHostToDevice();
+#ifdef DEBUG
+    printf("init(): done.\n");
+#endif
+    return true;
 }
 
 void Simplex3DRegular::transferHostToDevice() {
@@ -119,7 +129,7 @@ void Simplex3DRegular::transferDeviceToHost() {
     gpuErrchk(cudaDeviceSynchronize());
 }
 
-StatsCollector Simplex3DRegular::doBenchmark() {
+float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
 
 #ifdef DEBUG
     printf("doBenchmark(): mapping to simplex of n=%lu   Vcube = %lu   Vsimplex = %lu\n", this->n, this->nElementsCube, this->nElementsSimplex);
@@ -131,23 +141,25 @@ StatsCollector Simplex3DRegular::doBenchmark() {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 #ifdef DEBUG
-    printf("\x1b[1mdoBenchmark(): kernel (map=%i, r=%i)...\x1b[0m", this->mapType, REPEATS);
+    printf("\x1b[1mdoBenchmark(): kernel (map=%i, r=%i)...\x1b[0m", this->mapType, nTimes);
     fflush(stdout);
 #endif
 
     cudaEventRecord(start);
     switch (mapType) {
     case MapType::BOUNDING_BOX:
-        for (uint32_t i = 0; i < REPEATS; ++i) {
-            kernelBoundingBox<<<this->grid, this->block>>>(this->devData, this->n);
+        for (uint32_t i = 0; i < nTimes; ++i) {
+            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
         }
         break;
     case MapType::HADOUKEN:
-        for (uint32_t i = 0; i < REPEATS; ++i) {
+        for (uint32_t i = 0; i < nTimes; ++i) {
+            kernelHadouken<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
         }
         break;
     case MapType::DYNAMIC_PARALLELISM:
-        for (uint32_t i = 0; i < REPEATS; ++i) {
+        for (uint32_t i = 0; i < nTimes; ++i) {
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
         }
         break;
     }
@@ -161,46 +173,26 @@ StatsCollector Simplex3DRegular::doBenchmark() {
     fflush(stdout);
 #endif
 
-#ifdef DEBUG
-    // synchronize GPU/CPU mem
-    printf("gpudummy(): synchronizing CPU/GPU mem...");
-    fflush(stdout);
-#endif
-    cudaMemcpy(h_data, d_data, sizeof(float) * N, cudaMemcpyDeviceToHost);
-    gpuErrchk(cudaPeekAtLastError());
-    cudaMemcpy(h_outcube, d_outcube, sizeof(char) * Vcube, cudaMemcpyDeviceToHost);
-    gpuErrchk(cudaPeekAtLastError());
-    gpuErrchk(cudaDeviceSynchronize());
-#ifdef DEBUG
-    printf("ok\n");
-    if (N <= 16) {
-        printf("cube:\n");
-        printcube(h_outcube, N);
-        // printcube_coords(h_outcube, N);
-    }
-#endif
-
-// verify result
-#ifdef VERIFY
-#ifdef DEBUG
-    printf("gpudummy(): verifying result...");
-    fflush(stdout);
-#endif
-    assert(verify(h_outcube, N, [REPEATS](char d, float x, float y, float z) { return d == 1; }));
-#ifdef DEBUG
-    printf("ok\n\n");
-    fflush(stdout);
-#endif
-#endif
-
-    // clear
-    free(h_data);
-    free(h_outcube);
-    cudaFree(d_data);
-    cudaFree(d_outcube);
-
     // return computing time
     float msecs = 0;
     cudaEventElapsedTime(&msecs, start, stop);
-    return msecs / ((float)REPEATS);
+    return msecs / ((float)nTimes);
+}
+
+void Simplex3DRegular::printHostData() {
+    // has little use but implemented anyway
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            for (int k = 0; k < n; k++) {
+                printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
+            }
+            printf("\n");
+        }
+        printf("\n\n");
+    }
+}
+
+void Simplex3DRegular::printDeviceData() {
+    transferDeviceToHost();
+    printHostData();
 }

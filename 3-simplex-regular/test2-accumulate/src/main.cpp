@@ -8,6 +8,8 @@
 #include "Simplex3DRegular.cuh"
 #include "StatsCollector.h"
 
+const uint32_t INNER_REPEATS = 10;
+
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
     if (argc != 5) {
@@ -20,7 +22,10 @@ int main(int argc, char** argv) {
     uint32_t repeats = atoi(argv[3]);
     uint32_t mapType = atoi(argv[4]);
 
-    Simplex3DRegular benchmark = new Simplex3DRegular(deviceId, powerOfTwoSize, mapType);
+    Simplex3DRegular* benchmark = new Simplex3DRegular(deviceId, powerOfTwoSize, mapType);
+    benchmark->init();
+    float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
+    benchmark->printDeviceData();
     // StatsCollector<float> times = prepareAndPerformBenchmark(deviceId, powerOfTwo, repeats, mapType);
 
 #ifdef DEBUG
@@ -31,6 +36,6 @@ int main(int argc, char** argv) {
     printf("\x1b[0m");
     fflush(stdout);
 #else
-    printf("%f\n", times.getAverage());
+    printf("%f\n", iterationTime);
 #endif
 }

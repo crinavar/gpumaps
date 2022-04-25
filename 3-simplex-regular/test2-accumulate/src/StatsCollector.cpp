@@ -1,13 +1,14 @@
-#include <StatsCollector.h>
+#include "StatsCollector.h"
 
-StatsCollector::StatsCollector() {
+template <typename T>
+StatsCollector<T>::StatsCollector() {
     this->average = NOT_CALCULATED;
     this->standardDeviation = NOT_CALCULATED;
     this->variance = NOT_CALCULATED;
 }
 
 template <typename T>
-void StatsCollector::add(T val) {
+void StatsCollector<T>::add(T val) {
     if (val > 0) {
         this->runs.push_back(val);
     }
@@ -16,7 +17,8 @@ void StatsCollector::add(T val) {
     this->standardDeviation = NOT_CALCULATED;
 }
 
-float StatsCollector::getAverage() {
+template <typename T>
+float StatsCollector<T>::getAverage() {
     if (isInvalid(this->average) && this->runs.size() != 0) {
         this->average = std::reduce(this->runs.begin(), this->runs.end(), 0.0) / this->runs.size();
     }
@@ -24,7 +26,7 @@ float StatsCollector::getAverage() {
 }
 
 template <typename T>
-float StatsCollector::getStandardDeviation() {
+float StatsCollector<T>::getStandardDeviation() {
     if (isInvalid(this->standardDeviation) && this->runs.size() != 0) {
         const float variance = getVariance();
         this->standarDeviation = sqrt(variance);
@@ -33,16 +35,19 @@ float StatsCollector::getStandardDeviation() {
 }
 
 template <typename T>
-float StatsCollector::getVariance() {
+float StatsCollector<T>::getVariance() {
     if (isInvalid(this->variance) && this->runs.size() != 0) {
         const float mean = getAverage();
+        auto sz = runs.size();
         auto variance_func = [&mean, &sz](T accumulator, const T& val) {
             return accumulator + ((val - mean) * (val - mean) / (sz - 1));
         };
 
-        this->variance = std::accumulate(vec.begin(), vec.end(), 0.0, variance_func);
+        this->variance = std::accumulate(runs.begin(), runs.end(), 0.0, variance_func);
     }
     return this->variance;
 }
-
-bool StatsCollector::isInvalid(double var) { return var == NOT_CALCULATED; }
+template <typename T>
+bool StatsCollector<T>::isInvalid(float var) {
+    return var == NOT_CALCULATED;
+}

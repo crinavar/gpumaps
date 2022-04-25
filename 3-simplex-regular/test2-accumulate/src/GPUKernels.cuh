@@ -5,24 +5,34 @@ uint3 inline __device__ boundingBoxMap() {
 }
 
 uint3 inline __device__ hadoukenMap() {
-    return (uint3) { 0, 0, 0 }
+    return (uint3) { 0, 0, 0 };
 }
 
-__device__ inline void work(const float* data, char* mat, unsigned long index, uint3 p) {
-    mat[index] = 1;
+__device__ inline void work(MTYPE* data, unsigned long index, uint3 p) {
+    data[index] = 1;
 }
 
-__global__ void kernelBoundingBox(const MTYPE* data, const size_t n) {
+__global__ void kernelBoundingBox(MTYPE* data, const size_t n) {
     if (blockIdx.x > blockIdx.y || blockIdx.y > blockIdx.z) {
         return;
     }
-    auto p = map();
+    auto p = boundingBoxMap();
     if (p.x < p.y && p.y < p.z) {
         unsigned long index = p.z * n * n + p.y * n + p.x;
-        if (index < V) {
-            work(data, mat, index, p);
+        if (index < 1) {
+            work(data, index, p);
         }
     }
+    return;
+}
+
+__global__ void kernelHadouken(const MTYPE* data, const size_t n) {
+
+    return;
+}
+
+__global__ void kernelDynamicParallelism(const MTYPE* data, const size_t n) {
+
     return;
 }
 
@@ -39,7 +49,6 @@ __global__ void kernel1(const float* data, char* mat, const unsigned long n, con
     }
     return;
 }
-#endif
 
 __device__ float carmack_sqrtf(float nb) {
     float nb_half = nb * 0.5F;
