@@ -13,9 +13,21 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
 
     this->n = 1 << powerOfTwoSize;
     this->nElementsCube = n * n * n;
-    this->nElementsSimplex = n * (n + 1) * (n + 2) / 6;
+    this->nElementsSimplex = n * (n - 1) * (n + 1) / 6;
     if (maptype < 3) {
-        this->mapType = static_cast<MapType>(mapType);
+        switch (maptype) {
+        case 0:
+            this->mapType = MapType::BOUNDING_BOX;
+            break;
+        case 1:
+            this->mapType = MapType::HADOUKEN;
+
+            break;
+        case 2:
+            this->mapType = MapType::DYNAMIC_PARALLELISM;
+
+            break;
+        }
     } else {
         this->mapType = MapType::NOT_IMPLEMENTED;
     }
@@ -76,6 +88,10 @@ bool Simplex3DRegular::init() {
         this->freeMemory();
         return false;
     }
+#ifdef DEBUG
+    printf("init(): Map chosen: %i.\n", this->mapType);
+#endif
+
     if (this->powerOfTwoSize < 1) {
         printf("Power of two cannot be lower than 1, a cube of 1x1x1 is a trivial problem\n");
         return false;
@@ -144,12 +160,12 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
 #ifdef DEBUG
-    printf("\x1b[1mdoBenchmark(): kernel (map=%i, r=%i)...\x1b[0m", this->mapType, nTimes);
+    printf("\x1b[1mdoBenchmark(): kernel (map=%i, rep=%i)...\x1b[0m", this->mapType, nTimes);
     fflush(stdout);
 #endif
 
     cudaEventRecord(start);
-    switch (mapType) {
+    switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
@@ -162,7 +178,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         break;
     case MapType::DYNAMIC_PARALLELISM:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, (uint3) { 0, n / 2, 0 });
         }
         break;
     }
@@ -185,13 +201,13 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
 void Simplex3DRegular::printHostData() {
     // has little use but implemented anyway
     for (int i = 0; i < n; i++) {
+        printf("\n[z = %i]\n", i);
         for (int j = 0; j < n; j++) {
             for (int k = 0; k < n; k++) {
                 printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
             }
             printf("\n");
         }
-        printf("\n\n");
     }
 }
 

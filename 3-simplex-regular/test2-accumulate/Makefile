@@ -9,9 +9,9 @@ DBG_PATH := debug
 SRC_PATH := src
 
 # Compiler Macros used in code
-BSIZE3DX=8
-BSIZE3DY=8
-BSIZE3DZ=8
+BSIZE3DX=1
+BSIZE3DY=1
+BSIZE3DZ=1
 
 TARGET_NAME := test2-accumulate
 
@@ -22,7 +22,7 @@ TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
 ARCH=-arch sm_86
 CCOBJFLAGS=-DBSIZE3DX=${BSIZE3DX} -DBSIZE3DY=${BSIZE3DY} -DBSIZE3DZ=${BSIZE3DZ} -O3
 DBGDEFINES := -DDEBUG -DVERIFY
-NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda
+NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda 
 #NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 ${ARCH} --expt-extended-lambda --ptxas-options=-v
 
 CCFLAGS=${COMPILER_DEFINES}
@@ -42,14 +42,14 @@ $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cpp
 	$(CC) $(CCFLAGS) $(CCOBJFLAGS) -c -o $@ $<
 
 $(OBJ_PATH)/%.o: $(SRC_PATH)/%.cu
-	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) -c -o $@ $<
+	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) -MMD -c -o $@ $<
 
 
 $(DBG_PATH)/%.o: $(SRC_PATH)/%.cpp
 	$(CC) $(CCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -c -o $@ $<
 
 $(DBG_PATH)/%.o: $(SRC_PATH)/%.cu
-	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -c -o $@ $<
+	$(NVCC) $(NVCCFLAGS) $(CCOBJFLAGS) $(DBGDEFINES) -MMD -c -o $@ $<
 
 
 $(TARGET): $(OBJ) $(CUDA_OBJ)
@@ -72,13 +72,11 @@ all: $(TARGET)
 
 .PHONY: clean
 clean:
-	@rm $(DBG_PATH)/*
-	@rm $(OBJ_PATH)/*
-	@rm $(TARGET)
-	@rm $(TARGET_DEBUG)
+	-@rm $(DBG_PATH)/*
+	-@rm $(OBJ_PATH)/*
+	-@rm $(TARGET)
+	-@rm $(TARGET_DEBUG)
 
-
-
-
-
+-include $(OBJ_PATH)/*.d
+-include $(DBG_PATH)/*.d
 

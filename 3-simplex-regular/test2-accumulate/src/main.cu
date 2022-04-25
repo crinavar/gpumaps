@@ -8,7 +8,7 @@
 #include "Simplex3DRegular.cuh"
 #include "StatsCollector.h"
 
-const uint32_t INNER_REPEATS = 10;
+const uint32_t INNER_REPEATS = 3;
 
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
     printf("maxlong %lu\n", LONG_MAX);
     printf("\x1b[1m");
     fflush(stdout);
-    printf("main(): avg kernel time: %f ms\n", ktime);
+    printf("main(): avg kernel time: %f ms\n", iterationTime);
     printf("\x1b[0m");
     fflush(stdout);
 #else

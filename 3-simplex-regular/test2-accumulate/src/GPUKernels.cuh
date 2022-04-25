@@ -8,18 +8,16 @@ uint3 inline __device__ hadoukenMap() {
     return (uint3) { 0, 0, 0 };
 }
 
-__device__ inline void work(MTYPE* data, unsigned long index, uint3 p) {
-    data[index] = 1;
+__device__ inline void work(MTYPE* data, size_t index, uint3 p) {
+    data[index]++;
 }
 
 __global__ void kernelBoundingBox(MTYPE* data, const size_t n) {
-    if (blockIdx.x > blockIdx.y || blockIdx.y > blockIdx.z) {
-        return;
-    }
+
     auto p = boundingBoxMap();
-    if (p.x < p.y && p.y < p.z) {
-        unsigned long index = p.z * n * n + p.y * n + p.x;
-        if (index < 1) {
+    if (p.x + p.y + p.z < n - 1) {
+        size_t index = p.z * n * n + p.y * n + p.x;
+        if (index < n * n * n) {
             work(data, index, p);
         }
     }
@@ -31,8 +29,30 @@ __global__ void kernelHadouken(const MTYPE* data, const size_t n) {
     return;
 }
 
-__global__ void kernelDynamicParallelism(const MTYPE* data, const size_t n) {
+// Origin is the location of this orthotope origin inside the cube
+// Depth is the current level being mapped
+// level_n is the size of the orthotope at level depth
+__global__ void kernelDynamicParallelism(MTYPE* data, const size_t n, const uint32_t depth, const uint32_t level_n, const uint3 origin) {
+    // Map elements
+    auto p = boundingBoxMap();
+    if (p.x + p.y + p.z < level_n - 1) {
+        // In the simplex part of the cube
+        size_t index = (origin.z + p.z) * n * n + (origin.y + p.y) * n + (origin.x + p.x);
+        if (index < n * n * n) {
+            work(data, index, p);
+        }
+    } else {
+        // Out of the simplex part, needs to be remmaped
+        p = (uint3) { origin.x + p.y, origin.y + p.x, (2 * level_n) - 1 - p.z };
+        size_t index = p.z * n * n + p.y * n + p.x;
+        if (index < n * n * n) {
+            // work(data, index, p);
+        }
+    }
 
+    // Do work
+
+    // Launch child kernels
     return;
 }
 
