@@ -1,5 +1,11 @@
 #include <StatsCollector.h>
 
+StatsCollector::StatsCollector() {
+    this->average = NOT_CALCULATED;
+    this->standardDeviation = NOT_CALCULATED;
+    this->variance = NOT_CALCULATED;
+}
+
 template <typename T>
 void StatsCollector::add(T val) {
     if (val > 0) {
@@ -10,50 +16,33 @@ void StatsCollector::add(T val) {
     this->standardDeviation = NOT_CALCULATED;
 }
 
-template <typename T>
-double StatsCollector::getAverage() {
-    if (isInvalid(this->average)) {
-        if (this->runs.size() != 0) {
-            return std::reduce(this->runs.begin(), this->runs.end(), 0.0) / this->runs.size();
-        }
-    } else {
-        return this->average;
+float StatsCollector::getAverage() {
+    if (isInvalid(this->average) && this->runs.size() != 0) {
+        this->average = std::reduce(this->runs.begin(), this->runs.end(), 0.0) / this->runs.size();
     }
-    return NOT_CALCULATED;
+    return this->average;
 }
 
 template <typename T>
-double StatsCollector::getStandardDeviation() {
-    if (isInvalid(this->standardDeviation)) {
-        if (this->runs.size() != 0) {
-
-        } else {
-        }
-    } else {
-        return this->standardDeviation;
+float StatsCollector::getStandardDeviation() {
+    if (isInvalid(this->standardDeviation) && this->runs.size() != 0) {
+        const float variance = getVariance();
+        this->standarDeviation = sqrt(variance);
     }
-
-    return NOT_CALCULATED;
+    return this->standardDeviation;
 }
 
 template <typename T>
-T StatsCollector::getVariance() {
-    if (isInvalid(this->variance)) {
-        if (this->runs.size() != 0) {
-            const T mean = getAverage();
-            // Now calculate the variance
-            auto variance_func = [&mean, &sz](T accumulator, const T& val) {
-                return accumulator + ((val - mean) * (val - mean) / (sz - 1));
-            };
+float StatsCollector::getVariance() {
+    if (isInvalid(this->variance) && this->runs.size() != 0) {
+        const float mean = getAverage();
+        auto variance_func = [&mean, &sz](T accumulator, const T& val) {
+            return accumulator + ((val - mean) * (val - mean) / (sz - 1));
+        };
 
-            return std::accumulate(vec.begin(), vec.end(), 0.0, variance_func);
-        }
-    } else {
-        return this->averageTime;
+        this->variance = std::accumulate(vec.begin(), vec.end(), 0.0, variance_func);
     }
-    return NOT_CALCULATED;
+    return this->variance;
 }
 
-bool StatsCollector::isInvalid(double var) {
-    return var == NOT_CALCULATED;
-}
+bool StatsCollector::isInvalid(double var) { return var == NOT_CALCULATED; }

@@ -9,14 +9,15 @@
 template <typename T>
 class StatsCollector {
     std::vector<T> runs;
-    T average = NOT_CALCULATED;
-    T standardDeviation = NOT_CALCULATED;
-    T variance = NOT_CALCULATED;
+    float average;
+    float standardDeviation;
+    float variance;
 
+public:
     void add(T val);
-    T getAverage();
-    T getStandardDeviation();
-    T getVariance();
+    float getAverage();
+    float getStandardDeviation();
+    float getVariance();
 
-    bool isInvalid(double var);
+    bool isInvalid(float var);
 };
