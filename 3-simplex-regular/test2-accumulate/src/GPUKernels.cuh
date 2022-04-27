@@ -1,11 +1,30 @@
 #pragma once
 
+#define WORDLEN 31
+__device__ inline bool isInSimplex(const uint3 coord, const uint32_t level_n) {
+    return (coord.x + (coord.y) + coord.z < level_n - 1);
+}
 uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 }
 
-uint3 inline __device__ hadoukenMap() {
-    return (uint3) { 0, 0, 0 };
+uint3 inline __device__ hadoukenMap(const size_t n) {
+    auto p = boundingBoxMap();
+
+    if (p.z < n / 2) {
+        if (isInSimplex((uint3) { n / 2 - 1 - p.x, n / 2 - p.y - 1, n / 2 - p.z - 1 }, n / 2)) {
+            return (uint3) { 11111, 0, 1111 };
+        }
+
+        p.y = p.y + n / 2;
+        return p;
+
+    } else {
+        // const unsigned int h = WORDLEN - __clz(threadIdx.y + 1);
+        // const unsigned int qb = (threadIdx.x >> h) * (1 << h);
+        // if (isInSimplex(p, )) { }
+        return (uint3) { 11111, 0, 1111 };
+    }
 }
 
 __device__ inline void work(MTYPE* data, size_t index, uint3 p) {
@@ -15,7 +34,7 @@ __device__ inline void work(MTYPE* data, size_t index, uint3 p) {
 __global__ void kernelBoundingBox(MTYPE* data, const size_t n) {
 
     auto p = boundingBoxMap();
-    if (p.x + p.y + p.z < n - 1) {
+    if (isInSimplex(p, n)) {
         size_t index = p.z * n * n + p.y * n + p.x;
         if (index < n * n * n) {
             work(data, index, p);
@@ -24,49 +43,58 @@ __global__ void kernelBoundingBox(MTYPE* data, const size_t n) {
     return;
 }
 
-__global__ void kernelHadouken(const MTYPE* data, const size_t n) {
-
+__global__ void kernelHadouken(MTYPE* data, const size_t n) {
+    auto p = hadoukenMap(n);
+    p = (uint3) { (n - 1 - p.y), (n - 1 - p.x), p.z };
+    size_t index = p.z * n * n + p.y * n + p.x;
+    if (index < n * n * n) {
+        work(data, index, p);
+    }
     return;
 }
 
 // Origin is the location of this orthotope origin inside the cube
 // Depth is the current level being mapped
-// level_n is the size of the orthotope at level depth
-__global__ void kernelDynamicParallelism(MTYPE* data, const size_t n, const uint32_t depth, const uint32_t level_n, const uint3 origin) {
+// levelN is the size of the orthotope at level depth
+// This kernel assumes that the grid axes direction coalign with data space
+__global__ void kernelDynamicParallelism(MTYPE* data, const size_t n, const uint32_t depth, const uint32_t levelN, const uint3 origin) {
+    const uint32_t halfLevelN = levelN >> 1;
+    const uint32_t levelNminusOne = levelN - 1;
+
     // Map elements
-    auto p = boundingBoxMap();
-    if (p.x + p.y + p.z < level_n - 1) {
+    auto gridCoord = boundingBoxMap();
+
+    // Check which elements from the grid are inside the simplex region of the orthotope with its origin in the oposite side of each axis
+    if (isInSimplex((uint3) { levelNminusOne - gridCoord.x, levelNminusOne - gridCoord.y, levelNminusOne - gridCoord.z }, levelN)) {
         // In the simplex part of the cube
-        size_t index = (origin.z + p.z) * n * n + (origin.y + p.y) * n + (origin.x + p.x);
+        // Performing the hinged map to data space
+        gridCoord = (uint3) { origin.x + (levelNminusOne)-gridCoord.y, origin.y + (levelNminusOne)-gridCoord.x, (2 * levelN) - 1 - gridCoord.z };
+
+        size_t index = gridCoord.z * n * n + gridCoord.y * n + gridCoord.x;
         if (index < n * n * n) {
-            work(data, index, p);
+            work(data, index, gridCoord);
         }
     } else {
-        // Out of the simplex part, needs to be remmaped
-        p = (uint3) { origin.x + p.y, origin.y + p.x, (2 * level_n) - 1 - p.z };
-        size_t index = p.z * n * n + p.y * n + p.x;
+        // Out of the simplex region of the grid
+        // Directly map threads to data space
+        size_t index = (origin.z + gridCoord.z) * n * n + (origin.y + gridCoord.y) * n + (origin.x + gridCoord.x);
         if (index < n * n * n) {
-            // work(data, index, p);
+            work(data, index, gridCoord);
         }
     }
-
-    // Do work
 
     // Launch child kernels
-    return;
-}
 
-// kernel non-linear Map
-template <typename Lambda>
-__global__ void kernel1(const float* data, char* mat, const unsigned long n, const unsigned long V, Lambda map) {
-    // lambda map
-    auto p = map();
-    if (p.x < p.y && p.y < p.z) {
-        unsigned long index = p.z * n * n + p.y * n + p.x;
-        if (index < V) {
-            work(data, mat, index, p);
+    if (levelN > 1) {
+        if (threadIdx.x + threadIdx.x + threadIdx.x + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
+            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+            dim3 gridSize((halfLevelN + blockSize.x - 1) / blockSize.x, (halfLevelN + blockSize.y - 1) / blockSize.y, (halfLevelN + blockSize.z - 1) / blockSize.z);
+
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, (uint3) { origin.x + levelN, origin.y, origin.z });
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, (uint3) { origin.x, origin.y + levelN, origin.z });
         }
     }
+
     return;
 }
 

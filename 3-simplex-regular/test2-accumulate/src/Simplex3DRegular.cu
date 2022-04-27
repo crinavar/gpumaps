@@ -104,11 +104,11 @@ bool Simplex3DRegular::init() {
         break;
     case MapType::HADOUKEN:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-        this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (3 * (n - 1) / 4 + GPUBlock.z - 1) / GPUBlock.z);
+        this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (3 * (n) / 4 + GPUBlock.z - 1) / GPUBlock.z);
         break;
     case MapType::DYNAMIC_PARALLELISM:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-        this->GPUGrid = dim3((n + GPUBlock.x - 1) / GPUBlock.x, (n + GPUBlock.y - 1) / GPUBlock.y, (n + GPUBlock.z - 1) / GPUBlock.z);
+        this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (n / 2 + GPUBlock.z - 1) / GPUBlock.z);
         break;
     }
 
@@ -178,7 +178,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         break;
     case MapType::DYNAMIC_PARALLELISM:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, (uint3) { 0, n / 2, 0 });
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, (uint3) { 0, 0, 0 });
         }
         break;
     }
@@ -204,7 +204,11 @@ void Simplex3DRegular::printHostData() {
         printf("\n[z = %i]\n", i);
         for (int j = 0; j < n; j++) {
             for (int k = 0; k < n; k++) {
-                printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
+                if ((int)this->hostData[i * n * n + j * n + k] == 99) {
+                    printf("  ");
+                } else {
+                    printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
+                }
             }
             printf("\n");
         }

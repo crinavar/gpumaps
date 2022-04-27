@@ -22,7 +22,7 @@ TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
 ARCH=-arch sm_86
 CCOBJFLAGS=-DBSIZE3DX=${BSIZE3DX} -DBSIZE3DY=${BSIZE3DY} -DBSIZE3DZ=${BSIZE3DZ} -O3
 DBGDEFINES := -DDEBUG -DVERIFY
-NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda 
+NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda -rdc=true -lcudadevrt
 #NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 ${ARCH} --expt-extended-lambda --ptxas-options=-v
 
 CCFLAGS=${COMPILER_DEFINES}
