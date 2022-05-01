@@ -1,8 +1,13 @@
 #pragma once
 
 #define WORDLEN 31
+
 __device__ inline bool isInSimplex(const uint3 coord, const uint32_t level_n) {
     return (coord.x + (coord.y) + coord.z < level_n - 1);
+}
+
+uint3 inline __device__ addThreadIdxOffset(uint3 blockCoord) {
+    return (uint3) { blockCoord.x + threadIdx.x, blockCoord.y + threadIdx.y, blockCoord.z + threadIdx.z };
 }
 uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
@@ -31,16 +36,26 @@ __device__ inline void work(MTYPE* data, size_t index, uint3 p) {
     data[index]++;
 }
 
-__global__ void kernelBoundingBox(MTYPE* data, const size_t n) {
+__global__ void kernelBoundingBox(MTYPE* data, const size_t n, const size_t blockedN) {
 
-    auto p = boundingBoxMap();
-    if (isInSimplex(p, n)) {
-        size_t index = p.z * n * n + p.y * n + p.x;
-        if (index < n * n * n) {
-            work(data, index, p);
+    if (isInSimplex(blockIdx, blockedN + 1)) {
+        auto p = boundingBoxMap();
+        if (isInSimplex(p, n)) {
+            size_t index = p.z * n * n + p.y * n + p.x;
+            if (index < n * n * n) {
+                work(data, index, p);
+            }
         }
     }
     return;
+    // if (isInSimplex(p, blockedN)) {
+    //     auto p = addThreadIdxOffset(p);
+    //     size_t index = p.z * n * n + p.y * n + p.x;
+    //     if (index < n * n * n) {
+    //         work(data, index, p);
+    //     }
+    // }
+    // return;
 }
 
 __global__ void kernelHadouken(MTYPE* data, const size_t n) {

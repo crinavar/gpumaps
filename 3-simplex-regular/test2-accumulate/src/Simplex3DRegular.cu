@@ -97,14 +97,15 @@ bool Simplex3DRegular::init() {
         return false;
     }
 
+    uint32_t blockedN = ceil(n / BSIZE3DX);
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-        this->GPUGrid = dim3((n + GPUBlock.x - 1) / GPUBlock.x, (n + GPUBlock.y - 1) / GPUBlock.y, (n + GPUBlock.z - 1) / GPUBlock.z);
+        this->GPUGrid = dim3(blockedN, blockedN, blockedN);
         break;
     case MapType::HADOUKEN:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-        this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (3 * (n) / 4 + GPUBlock.z - 1) / GPUBlock.z);
+        this->GPUGrid = dim3(blockedN / 2, blockedN / 2, 3 * (blockedN) / 4);
         break;
     case MapType::DYNAMIC_PARALLELISM:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
@@ -168,7 +169,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
+            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, n / this->GPUBlock.x);
         }
         break;
     case MapType::HADOUKEN:

@@ -27,7 +27,9 @@ int main(int argc, char** argv) {
         exit(1);
     }
     float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
+#ifdef DEBUG
     benchmark->printDeviceData();
+#endif
     // StatsCollector<float> times = prepareAndPerformBenchmark(deviceId, powerOfTwo, repeats, mapType);
 
 #ifdef DEBUG
