@@ -13,16 +13,15 @@ uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 }
 
-uint3 inline __device__ hadoukenMap(const size_t n) {
-    auto p = boundingBoxMap();
+uint3 inline __device__ hadoukenMap(const uint3 coord, const size_t n) {
 
-    if (p.z < n / 2) {
-        if (isInSimplex((uint3) { n / 2 - 1 - p.x, n / 2 - p.y - 1, n / 2 - p.z - 1 }, n / 2)) {
+    if (coord.z < n / 2) {
+        if (isInSimplex((uint3) { n / 2 - 1 - coord.x, n / 2 - coord.y - 1, n / 2 - coord.z - 1 }, n / 2)) {
             return (uint3) { 11111, 0, 1111 };
         }
 
-        p.y = p.y + n / 2;
-        return p;
+        coord.y = coord.y + n / 2;
+        return coord;
 
     } else {
         // const unsigned int h = WORDLEN - __clz(threadIdx.y + 1);
@@ -60,6 +59,7 @@ __global__ void kernelBoundingBox(MTYPE* data, const size_t n, const size_t bloc
 
 __global__ void kernelHadouken(MTYPE* data, const size_t n) {
     auto p = hadoukenMap(n);
+    p = addThreadIdxOffset(p);
     p = (uint3) { (n - 1 - p.y), (n - 1 - p.x), p.z };
     size_t index = p.z * n * n + p.y * n + p.x;
     if (index < n * n * n) {
