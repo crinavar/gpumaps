@@ -13,20 +13,38 @@ uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 }
 
-uint3 inline __device__ hadoukenMap(const uint3 coord, const size_t n) {
+uint3 inline __device__ hadoukenMap(uint3 coord, const size_t n) {
 
     if (coord.z < n / 2) {
-        if (isInSimplex((uint3) { n / 2 - 1 - coord.x, n / 2 - coord.y - 1, n / 2 - coord.z - 1 }, n / 2)) {
-            return (uint3) { 11111, 0, 1111 };
+
+        if (isInSimplex((uint3) { n / 2 - 1 - coord.x, coord.y, n / 2 - coord.z - 1 }, n / 2)) {
+            printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
+
+            coord = (uint3) { coord.y, coord.x, (n)-blockIdx.z - 1 };
+            coord.y = coord.y + n / 2;
+            printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
+
+            return coord;
+            //(levelNminusOne) - gridCoord.y, origin.y + (levelNminusOne)-gridCoord.x, (2 * levelN) - 1 - gridCoord.z return (uint3) { 11111, 0, 1111 };
         }
 
+        // printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
         coord.y = coord.y + n / 2;
+
         return coord;
 
     } else {
-        // const unsigned int h = WORDLEN - __clz(threadIdx.y + 1);
-        // const unsigned int qb = (threadIdx.x >> h) * (1 << h);
-        // if (isInSimplex(p, )) { }
+        if (coord.y == 0) {
+            return (uint3) { 11111, 0, 1111 };
+        }
+        const uint32_t h = WORDLEN - __clz(coord.y);
+        const uint32_t b = (1 << h);
+        const uint32_t q = (coord.x >> h);
+        coord = (uint3) { coord.x + q * b, coord.y + 2 * q * b, coord.z - n / 2 };
+        if (isInSimplex(coord, n + 1)) {
+            return coord;
+        }
+        // printf("(%i,%i,%i) q:%i b:%i -> %i, %i, %i\n", coord.x, coord.y, coord.z, q, b, coord.x + q * b, coord.y + 2 * q * b, coord.z - n / 2);
         return (uint3) { 11111, 0, 1111 };
     }
 }
@@ -57,10 +75,11 @@ __global__ void kernelBoundingBox(MTYPE* data, const size_t n, const size_t bloc
     // return;
 }
 
-__global__ void kernelHadouken(MTYPE* data, const size_t n) {
-    auto p = hadoukenMap(n);
+__global__ void kernelHadouken(MTYPE* data, const size_t n, const size_t blockedN) {
+    auto p = hadoukenMap(blockIdx, blockedN);
+    p = (uint3) { (p.x), ((blockedN - 1) - p.y), p.z };
+
     p = addThreadIdxOffset(p);
-    p = (uint3) { (n - 1 - p.y), (n - 1 - p.x), p.z };
     size_t index = p.z * n * n + p.y * n + p.x;
     if (index < n * n * n) {
         work(data, index, p);

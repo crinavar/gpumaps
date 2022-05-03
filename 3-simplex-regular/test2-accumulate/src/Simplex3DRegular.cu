@@ -174,7 +174,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         break;
     case MapType::HADOUKEN:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelHadouken<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n);
+            kernelHadouken<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, n / this->GPUBlock.x);
         }
         break;
     case MapType::DYNAMIC_PARALLELISM:

@@ -8,7 +8,7 @@
 #include "Simplex3DRegular.cuh"
 #include "StatsCollector.h"
 
-const uint32_t INNER_REPEATS = 3;
+const uint32_t INNER_REPEATS = 1;
 
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
