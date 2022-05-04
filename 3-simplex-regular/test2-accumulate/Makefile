@@ -9,9 +9,9 @@ DBG_PATH := debug
 SRC_PATH := src
 
 # Compiler Macros used in code
-BSIZE3DX=1
-BSIZE3DY=1
-BSIZE3DZ=1
+BSIZE3DX=8
+BSIZE3DY=8
+BSIZE3DZ=8
 
 TARGET_NAME := test2-accumulate
 

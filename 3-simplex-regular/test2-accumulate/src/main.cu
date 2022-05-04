@@ -8,6 +8,7 @@
 #include "Simplex3DRegular.cuh"
 #include "StatsCollector.h"
 
+#define PRINT_LIMIT 6
 const uint32_t INNER_REPEATS = 1;
 
 int main(int argc, char** argv) {
@@ -27,9 +28,32 @@ int main(int argc, char** argv) {
         exit(1);
     }
     float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
+    benchmark->transferDeviceToHost();
+
 #ifdef DEBUG
-    benchmark->printDeviceData();
+    if (powerOfTwoSize <= PRINT_LIMIT) {
+        benchmark->printDeviceData();
+    }
 #endif
+
+#ifdef VERIFY
+    Simplex3DRegular* reference = new Simplex3DRegular(deviceId, powerOfTwoSize, 0);
+    if (!reference->init()) {
+        exit(1);
+    }
+    reference->doBenchmarkAction(INNER_REPEATS);
+    reference->transferDeviceToHost();
+
+    if (!Simplex3DRegular::compare(benchmark, reference)) {
+        printf("\n[VERIFY] verification FAILED!.\n\n");
+
+        exit(1);
+    }
+
+    printf("\n[VERIFY] verification successful.\n\n");
+
+#endif
+
     // StatsCollector<float> times = prepareAndPerformBenchmark(deviceId, powerOfTwo, repeats, mapType);
 
 #ifdef DEBUG

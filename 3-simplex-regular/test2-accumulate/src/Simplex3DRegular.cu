@@ -97,7 +97,8 @@ bool Simplex3DRegular::init() {
         return false;
     }
 
-    uint32_t blockedN = ceil(n / BSIZE3DX);
+    uint32_t blockedN = ceil(n / (float)BSIZE3DX);
+
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
@@ -105,7 +106,10 @@ bool Simplex3DRegular::init() {
         break;
     case MapType::HADOUKEN:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-        this->GPUGrid = dim3(blockedN / 2, blockedN / 2, 3 * (blockedN) / 4);
+        this->GPUGrid = dim3(ceil(blockedN / (float)2), ceil(blockedN / (float)2), ceil(3 * (blockedN) / (float)4));
+        // The +2 in Y is to enable the trick of the concurrent trapezoids in the 2D version
+        this->GPUGridAux = dim3(ceil(blockedN / (float)2), blockedN - 1 + 2, 1);
+
         break;
     case MapType::DYNAMIC_PARALLELISM:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
@@ -164,22 +168,33 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     printf("\x1b[1mdoBenchmark(): kernel (map=%i, rep=%i)...\x1b[0m", this->mapType, nTimes);
     fflush(stdout);
 #endif
-
+    cudaStream_t* streams;
+    if (this->mapType == MapType::HADOUKEN) {
+        streams = (cudaStream_t*)malloc(sizeof(cudaStream_t) * 2);
+        cudaStreamCreate(&streams[0]);
+        cudaStreamCreate(&streams[1]);
+    }
+    uint32_t blockedN = ceil(n / (float)BSIZE3DX);
     cudaEventRecord(start);
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, n / this->GPUBlock.x);
+            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
+            gpuErrchk(cudaDeviceSynchronize());
         }
         break;
     case MapType::HADOUKEN:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelHadouken<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, n / this->GPUBlock.x);
+            kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
+            kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
+            // printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
+            gpuErrchk(cudaDeviceSynchronize());
         }
         break;
     case MapType::DYNAMIC_PARALLELISM:
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, (uint3) { 0, 0, 0 });
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+            gpuErrchk(cudaDeviceSynchronize());
         }
         break;
     }
@@ -205,7 +220,7 @@ void Simplex3DRegular::printHostData() {
         printf("\n[z = %i]\n", i);
         for (int j = 0; j < n; j++) {
             for (int k = 0; k < n; k++) {
-                if ((int)this->hostData[i * n * n + j * n + k] == 99) {
+                if ((int)this->hostData[i * n * n + j * n + k] == 0) {
                     printf("  ");
                 } else {
                     printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
@@ -219,4 +234,23 @@ void Simplex3DRegular::printHostData() {
 void Simplex3DRegular::printDeviceData() {
     transferDeviceToHost();
     printHostData();
+}
+
+bool Simplex3DRegular::compare(Simplex3DRegular* a, Simplex3DRegular* b) {
+    bool res = true;
+    if (a->n != b->n) {
+        return false;
+    }
+    for (size_t z = 0; z < a->n; ++z) {
+        for (size_t y = 0; y < a->n; ++y) {
+            for (size_t x = 0; x < a->n; ++x) {
+                size_t i = z * a->n * a->n + y * a->n + x;
+                if (a->hostData[i] != b->hostData[i]) {
+                    // printf("a[%lu, %lu, %lu] (%lu) = %i != %i b\n", x, y, z, i, a->hostData[i], b->hostData[i]);
+                    res = false;
+                }
+            }
+        }
+    }
+    return res;
 }

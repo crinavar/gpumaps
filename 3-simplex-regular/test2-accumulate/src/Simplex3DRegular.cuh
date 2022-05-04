@@ -23,6 +23,7 @@ enum class MapType {
 };
 
 class Simplex3DRegular {
+public:
     size_t n;
     size_t nElementsCube;
     size_t nElementsSimplex;
@@ -33,15 +34,17 @@ class Simplex3DRegular {
 
     dim3 GPUBlock;
     dim3 GPUGrid;
+    dim3 GPUGridAux;
+
+    bool hasBeenAllocated;
 
     MTYPE* hostData;
     MTYPE* devData;
 
-    bool hasBeenAllocated;
-
-public:
     Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, uint32_t maptype);
     ~Simplex3DRegular();
+
+    static bool compare(Simplex3DRegular* a, Simplex3DRegular* b);
     bool init();
     void allocateMemory();
     void freeMemory();

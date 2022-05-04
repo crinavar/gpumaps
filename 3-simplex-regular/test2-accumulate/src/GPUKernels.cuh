@@ -2,50 +2,123 @@
 
 #define WORDLEN 31
 
+// Checks if the given coordinate is inside the regular 3-simplex of |side| = level_n.
+// It compares with level_n-1 as we dont care about elements in the diagonal plane
 __device__ inline bool isInSimplex(const uint3 coord, const uint32_t level_n) {
     return (coord.x + (coord.y) + coord.z < level_n - 1);
 }
 
+// Transform a given block coordinate to individual thread coordinates, in order to access data.
 uint3 inline __device__ addThreadIdxOffset(uint3 blockCoord) {
-    return (uint3) { blockCoord.x + threadIdx.x, blockCoord.y + threadIdx.y, blockCoord.z + threadIdx.z };
+    return (uint3) { blockCoord.x * blockDim.x + threadIdx.x, blockCoord.y * blockDim.y + threadIdx.y, blockCoord.z * blockDim.z + threadIdx.z };
 }
+
+// Traditional bounding box map
 uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 }
 
-uint3 inline __device__ hadoukenMap(uint3 coord, const size_t n) {
+// Hadouken 3D map: maps blocks from a reduced grid to the simplex region of data
+// The standard 3d hadouken map is able to map blocks from a reduced grid (compared to BB) to the 3-simplex
+// region of the matrix of data elements, without including the diagonal plane x+y+z=n.
+// E.g. n=4
+//        z=0         z=1         z=2         z=3
+//      1 1 1 0     1 1 0 0     1 0 0 0     0 0 0 0
+//      1 1 0 0     1 0 0 0     0 0 0 0     0 0 0 0
+//      1 0 0 0     0 0 0 0     0 0 0 0     0 0 0 0
+//      0 0 0 0     0 0 0 0     0 0 0 0     0 0 0 0
+// However, in a blocked approach we would group up packets of BSIZE^3 elements into one block, thus working
+// with a coarser version of the simplex.
+// E.g. for BSIZE = 2 -> blocked_n = old_n/BSIZE
+//      z=0     z=1
+//      1  0*    0* 0
+//      0* 0     0  0
+// This introduces a problem, since we would only account for one block of data (denoted with 1) but there are
+// still elements in the positions marked with '*'!
+// Our solution consist in movin the blocked simplex down one position (of BSIZE elements) and then in parallel
+// with a different kernel/stream, map the thick 2d version of the map at y=0.
+// Although the corner of the regular 3-simplex is the origin, to simplify the calculation of this map, it assumes
+// an origin at the corner y=n-1, with +y in the opposite direction.
+uint3 inline __device__ hadoukenMap3d(uint3 coord, const size_t n) {
+    const uint32_t nHalf = n >> 1;
+    if (coord.z < nHalf) {
+        // Block within the largest region of the grid
 
-    if (coord.z < n / 2) {
+        // ***** VERSION 1 *****
+        // Move the entire region to its position in the simplex
+        // coord.y = coord.y + nHalf;
+        // Then transform the coordinate to data space (with an origin at the corner of the 3-simplex)
+        // coord = (uint3) { (coord.x), ((n - 1) - coord.y), coord.z };
 
-        if (isInSimplex((uint3) { n / 2 - 1 - coord.x, coord.y, n / 2 - coord.z - 1 }, n / 2)) {
-            printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
+        // ***** VERSION 2 [Faster] *****
+        coord.y = ((n - 1) - (coord.y + nHalf));
 
-            coord = (uint3) { coord.y, coord.x, (n)-blockIdx.z - 1 };
-            coord.y = coord.y + n / 2;
-            printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
-
-            return coord;
-            //(levelNminusOne) - gridCoord.y, origin.y + (levelNminusOne)-gridCoord.x, (2 * levelN) - 1 - gridCoord.z return (uint3) { 11111, 0, 1111 };
+        // To check which blocks are inside the simplex, and which ones have to be remapped
+        // in a hinged manner to the top
+        if (!isInSimplex(coord, n)) {
+            // Here n/2 is the same as "b" in the paper, n/2 is faster tho.
+            // coord = (uint3) { nHalf - coord.x - 1, nHalf - coord.y - 1, n - coord.z - 1 };
+            coord.x = nHalf - coord.x - 1;
+            coord.y = nHalf - coord.y - 1;
+            coord.z = n - coord.z - 1;
         }
-
-        // printf("(%i,%i,%i) \n", coord.x, coord.y, coord.z);
-        coord.y = coord.y + n / 2;
-
-        return coord;
 
     } else {
-        if (coord.y == 0) {
-            return (uint3) { 11111, 0, 1111 };
-        }
+        // Blocks that are on top of the largest region of the grid
+
         const uint32_t h = WORDLEN - __clz(coord.y);
         const uint32_t b = (1 << h);
         const uint32_t q = (coord.x >> h);
-        coord = (uint3) { coord.x + q * b, coord.y + 2 * q * b, coord.z - n / 2 };
-        if (isInSimplex(coord, n + 1)) {
-            return coord;
+
+        // Check for blocks that do not belong to any region (wasted parallel space)
+        if (coord.y == 0 || coord.z - nHalf >= b) {
+            return (uint3) { 0, 1, 0xffffffff };
         }
-        // printf("(%i,%i,%i) q:%i b:%i -> %i, %i, %i\n", coord.x, coord.y, coord.z, q, b, coord.x + q * b, coord.y + 2 * q * b, coord.z - n / 2);
-        return (uint3) { 11111, 0, 1111 };
+
+        // The regions are mapped to their corresponding place within the simplex (note that for both x and y axis,
+        // the map is the same as the 2d version) and then transform the coordinates to data space (with the ofrigin
+        // at the corner of the simplex).
+        // coord = (uint3) { coord.x + q * b, coord.y + 2 * q * b, coord.z - nHalf };
+        // coord = (uint3) { (coord.x), ((n - 1) - coord.y), coord.z };
+        // Or reusing the same memory location
+        coord.x = coord.x + q * b;
+        coord.y = ((n - 1) - (coord.y + 2 * q * b));
+        coord.z = coord.z - nHalf;
+
+        // With the regions placed and the coordinate in data space, check which blocks of said regions lie
+        // outside of the simplex.
+        if (!isInSimplex(coord, n)) {
+            // Relative block coordinates within the region they belong to
+            uint32_t bMinusOne = b - 1;
+            uint32_t localX = coord.x & bMinusOne;
+            uint32_t localY = coord.y & bMinusOne;
+
+            // Relative hinged map of those blocks
+            // uint2 coord2 = (uint2) { (b - 1) - localY, (b - 1) - localX };
+            // Then add each offset to get the global coodinate
+            // uint3 coord21 = (uint3) { coord.x - (localX - coord2.x), coord.y - (localY - coord2.y), (2 * b) - coord.z - 1 };
+            // coord = coord21;
+
+            // Or reusing memory
+            coord.x = coord.x - (localX - (bMinusOne - localY));
+            coord.y = coord.y - (localY - (bMinusOne - localX));
+            coord.z = (2 * b) - coord.z - 1;
+        }
+    }
+    // Finally shift everything one block down to allow the strip work at y=0
+    // coord = (uint3) { coord.x, coord.y + 1, coord.z };
+    coord.y = coord.y + 1;
+
+    return coord;
+}
+
+uint3 inline __device__ hadoukenMap2d(uint3 coord, const size_t n) {
+    if (coord.y == gridDim.y - 1) {
+        return (uint3) { coord.x + gridDim.x, coord.y - 1, 0 };
+    } else {
+        const unsigned int h = WORDLEN - __clz(coord.y + 1);
+        const unsigned int qb = (coord.x >> h) * (1 << h);
+        return (uint3) { (coord.x + qb), (coord.y + (qb << 1)), 0 };
     }
 }
 
@@ -65,24 +138,53 @@ __global__ void kernelBoundingBox(MTYPE* data, const size_t n, const size_t bloc
         }
     }
     return;
-    // if (isInSimplex(p, blockedN)) {
-    //     auto p = addThreadIdxOffset(p);
-    //     size_t index = p.z * n * n + p.y * n + p.x;
-    //     if (index < n * n * n) {
-    //         work(data, index, p);
-    //     }
-    // }
-    // return;
 }
 
 __global__ void kernelHadouken(MTYPE* data, const size_t n, const size_t blockedN) {
-    auto p = hadoukenMap(blockIdx, blockedN);
-    p = (uint3) { (p.x), ((blockedN - 1) - p.y), p.z };
-
+    auto p = hadoukenMap3d(blockIdx, blockedN);
+    if (p.z == 0xffffffff) {
+        return;
+    }
     p = addThreadIdxOffset(p);
-    size_t index = p.z * n * n + p.y * n + p.x;
-    if (index < n * n * n) {
-        work(data, index, p);
+    if (isInSimplex(p, n)) {
+        size_t index = p.z * n * n + p.y * n + p.x;
+        if (index < n * n * n) {
+            work(data, index, p);
+        }
+    }
+    return;
+}
+
+// Kernel to map the thick 2d version of hadouken at y=0
+// This map works in an xy grid of blocks, to use it in out case, we need to use an xz version.
+// It also asumes the origin at the top right corner, same as the 3d version
+__global__ void kernelHadoukenStrip(MTYPE* data, const size_t n, const size_t blockedN) {
+    // Get the mapped coordinate of the region
+    auto p = hadoukenMap2d(blockIdx, blockedN);
+
+    // p = (uint3) { p.x, 0, ((blockedN - 1) - p.y) };
+    // Then transform it toan xz version with the origin at the corner.
+    p.z = ((blockedN - 1) - p.y);
+    p.y = 0;
+    p = addThreadIdxOffset(p);
+    if (isInSimplex(p, n)) {
+        size_t index = p.z * n * n + p.y * n + p.x;
+        if (index < n * n * n) {
+            work(data, index, p);
+        }
+    }
+    return;
+}
+
+//
+__global__ void kernelDynamicParallelismBruteForce(MTYPE* data, const size_t n, const uint32_t originX, const uint32_t originY) {
+    auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
+
+    if (isInSimplex(p, n)) {
+        size_t index = p.z * n * n + p.y * n + p.x;
+        if (index < n * n * n) {
+            work(data, index, p);
+        }
     }
     return;
 }
@@ -91,90 +193,54 @@ __global__ void kernelHadouken(MTYPE* data, const size_t n, const size_t blocked
 // Depth is the current level being mapped
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
-__global__ void kernelDynamicParallelism(MTYPE* data, const size_t n, const uint32_t depth, const uint32_t levelN, const uint3 origin) {
+__global__ void kernelDynamicParallelism(MTYPE* data, const size_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY) {
+
     const uint32_t halfLevelN = levelN >> 1;
     const uint32_t levelNminusOne = levelN - 1;
 
-    // Map elements
-    auto gridCoord = boundingBoxMap();
-
-    // Check which elements from the grid are inside the simplex region of the orthotope with its origin in the oposite side of each axis
-    if (isInSimplex((uint3) { levelNminusOne - gridCoord.x, levelNminusOne - gridCoord.y, levelNminusOne - gridCoord.z }, levelN)) {
+    // Map elements directly to data space, both origins coalign.
+    auto threadCoord = boundingBoxMap();
+    auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
-        gridCoord = (uint3) { origin.x + (levelNminusOne)-gridCoord.y, origin.y + (levelNminusOne)-gridCoord.x, (2 * levelN) - 1 - gridCoord.z };
+        size_t index = dataCoord.z * n * n + dataCoord.y * n + dataCoord.x;
 
-        size_t index = gridCoord.z * n * n + gridCoord.y * n + gridCoord.x;
         if (index < n * n * n) {
-            work(data, index, gridCoord);
+            work(data, index, threadCoord);
         }
-    } else {
+    } else if (n > BSIZE3DX) {
         // Out of the simplex region of the grid
         // Directly map threads to data space
-        size_t index = (origin.z + gridCoord.z) * n * n + (origin.y + gridCoord.y) * n + (origin.x + gridCoord.x);
+        // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
+        uint32_t bufferX = threadCoord.x;
+        threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
+        threadCoord.y = originY + (levelNminusOne)-bufferX;
+        threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
+        size_t index = threadCoord.z * n * n + threadCoord.y * n + threadCoord.x;
         if (index < n * n * n) {
-            work(data, index, gridCoord);
+            work(data, index, threadCoord);
         }
     }
 
     // Launch child kernels
+    if (threadIdx.x + threadIdx.y + threadIdx.z + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
 
-    if (levelN > 1) {
-        if (threadIdx.x + threadIdx.x + threadIdx.x + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
+        if (levelN > BSIZE3DX) {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-            dim3 gridSize((halfLevelN + blockSize.x - 1) / blockSize.x, (halfLevelN + blockSize.y - 1) / blockSize.y, (halfLevelN + blockSize.z - 1) / blockSize.z);
+            dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
 
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, (uint3) { origin.x + levelN, origin.y, origin.z });
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, (uint3) { origin.x, origin.y + levelN, origin.z });
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX + levelN, originY);
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX, originY + levelN);
+
+        } else if (levelN == BSIZE3DX) {
+            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+            dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
+
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX + levelN, originY);
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX, originY + levelN);
         }
     }
 
     return;
-}
-
-__device__ float carmack_sqrtf(float nb) {
-    float nb_half = nb * 0.5F;
-    float y = nb;
-    long i = *(long*)&y;
-    // i = 0x5f3759df - (i >> 1);
-    i = 0x5f375a86 - (i >> 1);
-    y = *(float*)&i;
-    // Repetitions increase accuracy(6)
-    y = y * (1.5f - (nb_half * y * y));
-    y = y * (1.5f - (nb_half * y * y));
-    y = y * (1.5f - (nb_half * y * y));
-
-    return nb * y;
-}
-
-__device__ inline float newton_sqrtf(const float number) {
-    int i;
-    float x, y;
-    // const float f = 1.5F;
-    x = number * 0.5f;
-    i = *(int*)&number;
-    i = 0x5f3759df - (i >> 1);
-    y = *(float*)&i;
-    y *= (1.5f - x * y * y);
-    y *= (1.5f - x * y * y);
-    y *= (1.5f - x * y * y);
-    return number * y;
-}
-
-__device__ inline float newton1_sqrtf(const float number) {
-
-    int i;
-    float x, y;
-    // const float f = 1.5F;
-    x = number * 0.5f;
-    i = *(int*)&number;
-    i = 0x5f3759df - (i >> 1);
-    y = *(float*)&i;
-    y *= (1.5f - x * y * y);
-    y *= number; // obteniendo resultado
-    // arreglar
-    if ((y + 1.0f) * (y + 1.0f) < number)
-        return y;
-    else
-        return y - 0.5f;
 }
