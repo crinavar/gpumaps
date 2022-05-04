@@ -21,11 +21,9 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
             break;
         case 1:
             this->mapType = MapType::HADOUKEN;
-
             break;
         case 2:
             this->mapType = MapType::DYNAMIC_PARALLELISM;
-
             break;
         }
     } else {
@@ -175,30 +173,38 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         cudaStreamCreate(&streams[1]);
     }
     uint32_t blockedN = ceil(n / (float)BSIZE3DX);
-    cudaEventRecord(start);
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
+        cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
             gpuErrchk(cudaDeviceSynchronize());
         }
+        cudaEventRecord(stop);
+
         break;
     case MapType::HADOUKEN:
+        cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
             kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
             // printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
             gpuErrchk(cudaDeviceSynchronize());
         }
+        cudaEventRecord(stop);
+
         break;
+
     case MapType::DYNAMIC_PARALLELISM:
+        cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
             gpuErrchk(cudaDeviceSynchronize());
         }
+        cudaEventRecord(stop);
+
         break;
     }
-    cudaEventRecord(stop);
     cudaEventSynchronize(stop);
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());

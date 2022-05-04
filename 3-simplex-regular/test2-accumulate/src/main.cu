@@ -1,3 +1,4 @@
+#include "StatsCollector.hpp"
 #include <cinttypes>
 #include <limits.h>
 #include <stdio.h>
@@ -6,10 +7,9 @@
 #include <time.h>
 
 #include "Simplex3DRegular.cuh"
-#include "StatsCollector.h"
 
 #define PRINT_LIMIT 6
-const uint32_t INNER_REPEATS = 1;
+const uint32_t INNER_REPEATS = 10;
 
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
@@ -23,12 +23,21 @@ int main(int argc, char** argv) {
     uint32_t repeats = atoi(argv[3]);
     uint32_t mapType = atoi(argv[4]);
 
-    Simplex3DRegular* benchmark = new Simplex3DRegular(deviceId, powerOfTwoSize, mapType);
-    if (!benchmark->init()) {
-        exit(1);
+    StatsCollector stats;
+    Simplex3DRegular* benchmark;
+
+    for (int i = 0; i < repeats; i++) {
+        benchmark = new Simplex3DRegular(deviceId, powerOfTwoSize, mapType);
+        if (!benchmark->init()) {
+            exit(1);
+        }
+        float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
+        benchmark->transferDeviceToHost();
+        stats.add(iterationTime);
+        if (i != repeats - 1) {
+            delete benchmark;
+        }
     }
-    float iterationTime = benchmark->doBenchmarkAction(INNER_REPEATS);
-    benchmark->transferDeviceToHost();
 
 #ifdef DEBUG
     if (powerOfTwoSize <= PRINT_LIMIT) {
@@ -54,16 +63,14 @@ int main(int argc, char** argv) {
 
 #endif
 
-    // StatsCollector<float> times = prepareAndPerformBenchmark(deviceId, powerOfTwo, repeats, mapType);
-
 #ifdef DEBUG
     printf("maxlong %lu\n", LONG_MAX);
     printf("\x1b[1m");
     fflush(stdout);
-    printf("main(): avg kernel time: %f ms\n", iterationTime);
+    printf("main(): avg kernel time: %f ms\n", stats.getAverage());
     printf("\x1b[0m");
     fflush(stdout);
 #else
-    printf("%f\n", iterationTime);
+    printf("%f, %f, %f, %f\n", stats.getAverage(), stats.getStandardDeviation(), stats.getStandardError(), stats.getVariance());
 #endif
 }

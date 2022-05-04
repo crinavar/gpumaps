@@ -1,6 +1,5 @@
 #pragma once
 
-#include "StatsCollector.h"
 #include <cassert>
 #include <cinttypes>
 #include <cuda.h>

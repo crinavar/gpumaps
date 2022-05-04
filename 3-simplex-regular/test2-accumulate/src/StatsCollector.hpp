@@ -1,25 +1,26 @@
-#pragma once
-
+#ifndef STATS_COLLECTOR_H
+#define STATS_COLLECTOR_H
 #include <cinttypes>
 #include <cmath>
 #include <numeric>
 #include <vector>
-#define NOT_CALCULATED HUGE_VAL
 
-template <typename T>
 class StatsCollector {
-    std::vector<T> runs;
+    std::vector<float> runs;
     float average;
     float standardDeviation;
+    float standardError;
     float variance;
 
 public:
     StatsCollector();
 
-    void add(T val);
+    void add(float val);
     float getAverage();
     float getStandardDeviation();
+    float getStandardError();
     float getVariance();
 
     bool isInvalid(float var);
 };
+#endif

@@ -1,45 +1,51 @@
-#include "StatsCollector.h"
+#include "StatsCollector.hpp"
+#define NOT_CALCULATED HUGE_VAL
 
-template <typename T>
-StatsCollector<T>::StatsCollector() {
+StatsCollector::StatsCollector() {
     this->average = NOT_CALCULATED;
     this->standardDeviation = NOT_CALCULATED;
+    this->standardError = NOT_CALCULATED;
     this->variance = NOT_CALCULATED;
 }
 
-template <typename T>
-void StatsCollector<T>::add(T val) {
+void StatsCollector::add(float val) {
     if (val > 0) {
         this->runs.push_back(val);
     }
     this->average = NOT_CALCULATED;
     this->variance = NOT_CALCULATED;
     this->standardDeviation = NOT_CALCULATED;
+    this->standardError = NOT_CALCULATED;
 }
 
-template <typename T>
-float StatsCollector<T>::getAverage() {
+float StatsCollector::getAverage() {
     if (isInvalid(this->average) && this->runs.size() != 0) {
         this->average = std::reduce(this->runs.begin(), this->runs.end(), 0.0) / this->runs.size();
     }
     return this->average;
 }
 
-template <typename T>
-float StatsCollector<T>::getStandardDeviation() {
+float StatsCollector::getStandardDeviation() {
     if (isInvalid(this->standardDeviation) && this->runs.size() != 0) {
         const float variance = getVariance();
-        this->standarDeviation = sqrt(variance);
+        this->standardDeviation = sqrt(variance);
     }
     return this->standardDeviation;
 }
 
-template <typename T>
-float StatsCollector<T>::getVariance() {
+float StatsCollector::getStandardError() {
+    if (isInvalid(this->standardError) && this->runs.size() != 0) {
+        const float standarDeviation = getStandardDeviation();
+        this->standardError = standarDeviation / sqrt(this->runs.size());
+    }
+    return this->standardError;
+}
+
+float StatsCollector::getVariance() {
     if (isInvalid(this->variance) && this->runs.size() != 0) {
         const float mean = getAverage();
         auto sz = runs.size();
-        auto variance_func = [&mean, &sz](T accumulator, const T& val) {
+        auto variance_func = [&mean, &sz](float accumulator, const float& val) {
             return accumulator + ((val - mean) * (val - mean) / (sz - 1));
         };
 
@@ -47,7 +53,7 @@ float StatsCollector<T>::getVariance() {
     }
     return this->variance;
 }
-template <typename T>
-bool StatsCollector<T>::isInvalid(float var) {
+
+bool StatsCollector::isInvalid(float var) {
     return var == NOT_CALCULATED;
 }
