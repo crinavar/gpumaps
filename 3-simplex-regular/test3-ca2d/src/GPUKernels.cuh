@@ -22,8 +22,31 @@ uint3 inline __device__ boundingBoxMap() {
     return (uint3) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 }
 
-__device__ inline void work(MTYPE* data, size_t index, uint3 p) {
-    data[index]++;
+__device__ inline void work(MTYPE* data, MTYPE* dataPong, size_t index, uint3 p, uint32_t nWithHalo) {
+    size_t indexNeighbourZp = (p.z + 2) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+    size_t indexNeighbourZm = (p.z) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+
+    size_t indexNeighbourYp = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 2) * nWithHalo + (p.x + 1);
+    size_t indexNeighbourYm = (p.z + 1) * nWithHalo * nWithHalo + (p.y) * nWithHalo + (p.x + 1);
+
+    size_t indexNeighbourXp = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 2);
+    size_t indexNeighbourXm = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x);
+
+    uint32_t aliveNeighbors = data[indexNeighbourZp] + data[indexNeighbourZm] + data[indexNeighbourYp] + data[indexNeighbourYm] + data[indexNeighbourXp] + data[indexNeighbourXm];
+    MTYPE val = data[index];
+    if (val == 1) {
+        if (aliveNeighbors < 2 || aliveNeighbors > 3) {
+            dataPong[index] = 0;
+        } else {
+            dataPong[index] = 1;
+        }
+    } else {
+        if (aliveNeighbors == 3) {
+            dataPong[index] = 1;
+        } else {
+            dataPong[index] = 0;
+        }
+    }
     return;
 }
 
@@ -130,30 +153,30 @@ uint3 inline __device__ hadoukenMap2d(uint3 coord, const uint32_t n) {
     }
 }
 
-__global__ void kernelBoundingBox(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
+__global__ void kernelBoundingBox(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t blockedN, uint32_t nWithHalo) {
 
     if (isInSimplex(blockIdx, blockedN + 1)) {
         auto p = boundingBoxMap();
         if (isInSimplex(p, n)) {
-            size_t index = p.z * n * n + p.y * n + p.x;
-            if (index < n * n * n) {
-                work(data, index, p);
+            size_t index = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+            if (index < nWithHalo * nWithHalo * nWithHalo) {
+                work(data, dataPong, index, p, nWithHalo);
             }
         }
     }
     return;
 }
 
-__global__ void kernelHadouken(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
+__global__ void kernelHadouken(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t blockedN, uint32_t nWithHalo) {
     auto p = hadoukenMap3d(blockIdx, blockedN);
     if (p.z == 0xffffffff) {
         return;
     }
     p = addThreadIdxOffset(p);
     if (isInSimplex(p, n)) {
-        size_t index = p.z * n * n + p.y * n + p.x;
-        if (index < n * n * n) {
-            work(data, index, p);
+        size_t index = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, p, nWithHalo);
         }
     }
     return;
@@ -162,7 +185,7 @@ __global__ void kernelHadouken(MTYPE* data, const uint32_t n, const uint32_t blo
 // Kernel to map the thick 2d version of hadouken at y=0
 // This map works in an xy grid of blocks, to use it in out case, we need to use an xz version.
 // It also asumes the origin at the top right corner, same as the 3d version
-__global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
+__global__ void kernelHadoukenStrip(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t blockedN, uint32_t nWithHalo) {
     // Get the mapped coordinate of the region
     auto p = hadoukenMap2d(blockIdx, blockedN);
 
@@ -172,9 +195,9 @@ __global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_
     p.y = 0;
     p = addThreadIdxOffset(p);
     if (isInSimplex(p, n)) {
-        size_t index = p.z * n * n + p.y * n + p.x;
-        if (index < n * n * n) {
-            work(data, index, p);
+        size_t index = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, p, nWithHalo);
         }
     }
     return;
@@ -182,13 +205,13 @@ __global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_
 
 #ifdef DP
 //
-__global__ void kernelDynamicParallelismBruteForce(MTYPE* data, const uint32_t n, const uint32_t originX, const uint32_t originY) {
+__global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
     auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 
     if (isInSimplex(p, n)) {
-        size_t index = p.z * n * n + p.y * n + p.x;
-        if (index < n * n * n) {
-            work(data, index, p);
+        size_t index = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, p, nWithHalo);
         }
     }
     return;
@@ -198,7 +221,7 @@ __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, const uint32_t n
 // Depth is the current level being mapped
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
-__global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY) {
+__global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY, uint32_t nWithHalo) {
 
     const uint32_t halfLevelN = levelN >> 1;
     const uint32_t levelNminusOne = levelN - 1;
@@ -209,10 +232,9 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
     if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
-        size_t index = dataCoord.z * n * n + dataCoord.y * n + dataCoord.x;
-
-        if (index < n * n * n) {
-            work(data, index, threadCoord);
+        size_t index = (dataCoord.z + 1) * nWithHalo * nWithHalo + (dataCoord.y + 1) * nWithHalo + (dataCoord.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, dataCoord, nWithHalo);
         }
     } else if (n > BSIZE3DX) {
         // Out of the simplex region of the grid
@@ -222,9 +244,9 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
         threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
         threadCoord.y = originY + (levelNminusOne)-bufferX;
         threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
-        size_t index = threadCoord.z * n * n + threadCoord.y * n + threadCoord.x;
-        if (index < n * n * n) {
-            work(data, index, threadCoord);
+        size_t index = (threadCoord.z + 1) * nWithHalo * nWithHalo + (threadCoord.y + 1) * nWithHalo + (threadCoord.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, threadCoord, nWithHalo);
         }
     }
 
@@ -235,15 +257,15 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
 
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX + levelN, originY);
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX, originY + levelN);
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, dataPong, n, depth + 1, halfLevelN, originX + levelN, originY, nWithHalo);
+            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, dataPong, n, depth + 1, halfLevelN, originX, originY + levelN, nWithHalo);
 
         } else if (levelN == BSIZE3DX) {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
 
-            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX + levelN, originY);
-            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX, originY + levelN);
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, dataPong, n, originX + levelN, originY, nWithHalo);
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, dataPong, n, originX, originY + levelN, nWithHalo);
         }
     }
 

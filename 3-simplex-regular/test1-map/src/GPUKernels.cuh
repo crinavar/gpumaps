@@ -23,7 +23,6 @@ uint3 inline __device__ boundingBoxMap() {
 }
 
 __device__ inline void work(MTYPE* data, size_t index, uint3 p) {
-    data[index]++;
     return;
 }
 

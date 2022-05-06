@@ -7,15 +7,18 @@
 //#define OFFSET 0.0f
 #define REAL float
 
-Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, uint32_t maptype)
+Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, uint32_t maptype, float density, uint32_t seed)
     : deviceId(deviceId)
-    , powerOfTwoSize(powerOfTwoSize) {
+    , powerOfTwoSize(powerOfTwoSize)
+    , density(density)
+    , seed(seed) {
 
     this->n = 1 << powerOfTwoSize;
     this->nElementsCube = n * n * n;
     this->nElementsSimplex = n * (n - 1) * (n + 1) / 6;
+    this->nElementsCubeWithHalo = (n + 2) * (n + 2) * (n + 2);
     this->mapType = MapType::NOT_IMPLEMENTED;
-
+    this->iterationCount = 0;
     if (maptype < 3) {
         switch (maptype) {
         case 0:
@@ -48,8 +51,9 @@ void Simplex3DRegular::allocateMemory() {
         printf("Memory already allocated.\n");
         return;
     }
-    this->hostData = (MTYPE*)malloc(sizeof(MTYPE) * this->nElementsCube);
-    cudaMalloc(&devData, sizeof(MTYPE) * nElementsCube);
+    this->hostData = (MTYPE*)malloc(sizeof(MTYPE) * (this->nElementsCubeWithHalo));
+    cudaMalloc(&devData, sizeof(MTYPE) * this->nElementsCubeWithHalo);
+    cudaMalloc(&devDataPong, sizeof(MTYPE) * this->nElementsCubeWithHalo);
     gpuErrchk(cudaPeekAtLastError());
     this->hasBeenAllocated = true;
 }
@@ -60,6 +64,7 @@ void Simplex3DRegular::freeMemory() {
     cudaFree(devData);
     gpuErrchk(cudaPeekAtLastError());
     this->hasBeenAllocated = false;
+    this->iterationCount = 0;
 }
 
 bool Simplex3DRegular::isMapTypeImplemented() {
@@ -127,8 +132,29 @@ bool Simplex3DRegular::init() {
 #ifdef DEBUG
     printf("init(): filling cube with 0.\n");
 #endif
-    for (size_t i = 0; i < this->nElementsCube; ++i) {
+    for (size_t i = 0; i < this->nElementsCubeWithHalo; ++i) {
         this->hostData[i] = (MTYPE)0;
+    }
+#ifdef DEBUG
+    printf("init(): done.\n");
+#endif
+
+    srand(this->seed);
+#ifdef DEBUG
+    printf("init(): filling simplex initial state with p = %f .\n", this->density);
+#endif
+    for (size_t z = 0; z < this->n; ++z) {
+        for (size_t y = 0; y < this->n; ++y) {
+            for (size_t x = 0; x < this->n; ++x) {
+                if (x + y + z < n - 1) {
+                    size_t i = (z + 1) * (n + 2) * (n + 2) + (y + 1) * (n + 2) + (x + 1);
+                    if (rand() / (float)RAND_MAX < this->density) {
+
+                        this->hostData[i] = (MTYPE)1;
+                    }
+                }
+            }
+        }
     }
 #ifdef DEBUG
     printf("init(): done.\n");
@@ -145,12 +171,13 @@ bool Simplex3DRegular::init() {
 }
 
 void Simplex3DRegular::transferHostToDevice() {
-    cudaMemcpy(this->devData, this->hostData, sizeof(MTYPE) * this->nElementsCube, cudaMemcpyHostToDevice);
+    cudaMemcpy(this->devData, this->hostData, sizeof(MTYPE) * this->nElementsCubeWithHalo, cudaMemcpyHostToDevice);
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
 }
 void Simplex3DRegular::transferDeviceToHost() {
-    cudaMemcpy(this->hostData, this->devData, sizeof(MTYPE) * this->nElementsCube, cudaMemcpyDeviceToHost);
+    cudaMemcpy(this->hostData, this->devData, sizeof(MTYPE) * this->nElementsCubeWithHalo, cudaMemcpyDeviceToHost);
+
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
 }
@@ -162,6 +189,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     printf("doBenchmark(): Cube size is %f MB\n", (float)this->nElementsCube * sizeof(MTYPE) / (1024.0 * 1024.0f));
 #endif
 
+    this->iterationCount += nTimes;
     // begin performance tests
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -176,13 +204,20 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         cudaStreamCreate(&streams[0]);
         cudaStreamCreate(&streams[1]);
     }
+
+    MTYPE* devPointerAux;
+
     uint32_t blockedN = ceil(n / (float)BSIZE3DX);
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
+            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
             gpuErrchk(cudaDeviceSynchronize());
+            std::swap(devData, devDataPong);
+            // devPointerAux = devData;
+            // devData = devDataPong;
+            // devDataPong = devPointerAux;
         }
         cudaEventRecord(stop);
 
@@ -190,10 +225,11 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     case MapType::HADOUKEN:
         cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
-            kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
+            kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
+            kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
             //  printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
             gpuErrchk(cudaDeviceSynchronize());
+            std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
 
@@ -203,9 +239,10 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         cudaEventRecord(start);
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
-            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, 1, n / 2, 0, 0, n + 2);
 #endif
             gpuErrchk(cudaDeviceSynchronize());
+            std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
 
@@ -228,14 +265,15 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
 
 void Simplex3DRegular::printHostData() {
     // has little use but implemented anyway
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n + 2; i++) {
         printf("\n[z = %i]\n", i);
-        for (int j = 0; j < n; j++) {
-            for (int k = 0; k < n; k++) {
-                if ((int)this->hostData[i * n * n + j * n + k] == 0) {
+        for (int j = 0; j < n + 2; j++) {
+            for (int k = 0; k < n + 2; k++) {
+                size_t index = i * (n + 2) * (n + 2) + j * (n + 2) + k;
+                if ((int)this->hostData[index] == 0) {
                     printf("  ");
                 } else {
-                    printf("%i ", (int)this->hostData[i * n * n + j * n + k]);
+                    printf("%i ", (int)this->hostData[index]);
                 }
             }
             printf("\n");
@@ -253,10 +291,10 @@ bool Simplex3DRegular::compare(Simplex3DRegular* a, Simplex3DRegular* b) {
     if (a->n != b->n) {
         return false;
     }
-    for (size_t z = 0; z < a->n; ++z) {
-        for (size_t y = 0; y < a->n; ++y) {
-            for (size_t x = 0; x < a->n; ++x) {
-                size_t i = z * a->n * a->n + y * a->n + x;
+    for (size_t z = 0; z < a->n + 2; ++z) {
+        for (size_t y = 0; y < a->n + 2; ++y) {
+            for (size_t x = 0; x < a->n + 2; ++x) {
+                size_t i = z * (a->n + 2) * (a->n + 2) + y * (a->n + 2) + x;
                 if (a->hostData[i] != b->hostData[i]) {
                     // printf("a[%lu, %lu, %lu] (%lu) = %i != %i b\n", x, y, z, i, a->hostData[i], b->hostData[i]);
                     res = false;

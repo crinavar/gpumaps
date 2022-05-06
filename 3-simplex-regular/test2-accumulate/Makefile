@@ -18,12 +18,16 @@ TARGET_NAME := test2-accumulate
 TARGET := $(BIN_PATH)/$(TARGET_NAME)
 TARGET_DEBUG := $(DBG_PATH)/$(TARGET_NAME)
 
+DP := NO
 
 ARCH=-arch sm_86
 CCOBJFLAGS=-DBSIZE3DX=${BSIZE3DX} -DBSIZE3DY=${BSIZE3DY} -DBSIZE3DZ=${BSIZE3DZ} -O3
 DBGDEFINES := -DDEBUG -DVERIFY
-NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} --expt-extended-lambda -rdc=true -lcudadevrt
-#NVCCFLAGS2=-O0 -Xcicc -O0 -Xptxas -O3 ${ARCH} --expt-extended-lambda --ptxas-options=-v
+ifeq (${DP}, NO)
+	NVCCFLAGS=${ARCH} ${COMPILER_DEFINES}
+else
+	NVCCFLAGS=${ARCH} ${COMPILER_DEFINES} -rdc=true -lcudadevrt -DDP
+endif
 
 CCFLAGS=${COMPILER_DEFINES}
 
