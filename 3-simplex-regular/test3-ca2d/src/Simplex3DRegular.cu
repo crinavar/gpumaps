@@ -62,6 +62,7 @@ void Simplex3DRegular::freeMemory() {
     // clear
     free(hostData);
     cudaFree(devData);
+    cudaFree(devDataPong);
     gpuErrchk(cudaPeekAtLastError());
     this->hasBeenAllocated = false;
     this->iterationCount = 0;
