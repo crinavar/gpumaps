@@ -212,6 +212,9 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         cudaEventRecord(start);
+#ifdef READ_POWER
+		GPUPowerBegin(this->n, 100, 0, "BB");
+#endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
             gpuErrchk(cudaDeviceSynchronize());
@@ -221,10 +224,14 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             // devDataPong = devPointerAux;
         }
         cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
 
         break;
     case MapType::HADOUKEN:
         cudaEventRecord(start);
+#ifdef READ_POWER
+		GPUPowerBegin(this->n, 100, 0, "HAD");
+#endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
             kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
@@ -233,11 +240,15 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
 
         break;
 
     case MapType::DYNAMIC_PARALLELISM:
         cudaEventRecord(start);
+#ifdef READ_POWER
+		GPUPowerBegin(this->n, 100, 0, "DP");
+#endif
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
             kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, 1, n / 2, 0, 0, n + 2);
@@ -246,12 +257,15 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
 
         break;
     }
-    cudaEventSynchronize(stop);
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
+#ifdef READ_POWER
+		GPUPowerEnd();
+#endif
 
 #ifdef DEBUG
     printf("\x1b[1mok\n\x1b[0m");

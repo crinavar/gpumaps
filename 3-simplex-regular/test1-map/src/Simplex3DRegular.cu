@@ -177,39 +177,42 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         cudaStreamCreate(&streams[1]);
     }
     uint32_t blockedN = ceil(n / (float)BSIZE3DX);
-    switch (this->mapType) {
-    case MapType::BOUNDING_BOX:
-        cudaEventRecord(start);
-        for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
-            gpuErrchk(cudaDeviceSynchronize());
-        }
-        cudaEventRecord(stop);
 
-        break;
-    case MapType::HADOUKEN:
-        cudaEventRecord(start);
-        for (uint32_t i = 0; i < nTimes; ++i) {
-            kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
-            kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
-            //  printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
-            gpuErrchk(cudaDeviceSynchronize());
-        }
-        cudaEventRecord(stop);
 
-        break;
+	switch (this->mapType) {
+	case MapType::BOUNDING_BOX:
+		cudaEventRecord(start);
+		for (uint32_t i = 0; i < nTimes; ++i) {
+			kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
+			gpuErrchk(cudaDeviceSynchronize());
+		}
+		cudaEventRecord(stop);
 
-    case MapType::DYNAMIC_PARALLELISM:
-        cudaEventRecord(start);
-        for (uint32_t i = 0; i < nTimes; ++i) {
+	break;
+	case MapType::HADOUKEN:
+		cudaEventRecord(start);
+		for (uint32_t i = 0; i < nTimes; ++i) {
+			kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
+			kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
+			//  printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
+			gpuErrchk(cudaDeviceSynchronize());
+		}
+		cudaEventRecord(stop);
+
+		break;
+
+	case MapType::DYNAMIC_PARALLELISM:
+		cudaEventRecord(start);
+		for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
-            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+			kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
 #endif
-            gpuErrchk(cudaDeviceSynchronize());
-        }
-        cudaEventRecord(stop);
+			gpuErrchk(cudaDeviceSynchronize());
+		}
+		cudaEventRecord(stop);
 
-        break;
+
+		break;
     }
     cudaEventSynchronize(stop);
     gpuErrchk(cudaPeekAtLastError());
