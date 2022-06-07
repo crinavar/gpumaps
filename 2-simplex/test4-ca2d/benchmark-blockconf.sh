@@ -1,5 +1,5 @@
 #!/bin/bash
-if [ "$#" -ne 11 ]; then
+if [ "$#" -ne 12 ]; then
     echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE ARCH"
     exit;
 fi
