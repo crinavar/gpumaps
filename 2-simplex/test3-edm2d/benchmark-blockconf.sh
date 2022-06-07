@@ -1,6 +1,6 @@
 #!/bin/bash
 if [ "$#" -ne 11 ]; then
-    echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE"
+    echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE ARCH"
     exit;
 fi
 DEV=$1
@@ -14,7 +14,8 @@ R=$8
 SAMPLES=$9
 BINARY=${10}
 OUTFILE=${11}
-HFACTOR=20
+ARCH=${12}
+HFACTOR=1
 METHODS=("BBox" "Lambda" "Rectangle" "Trapezoid")
 NM=$((${#METHODS[@]}))
 TMEAN[0]=0
@@ -29,7 +30,7 @@ do
     echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
-    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR}`
+    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
     echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
