@@ -43,7 +43,7 @@ do
             # Chosen MAP
             echo "./${BINARY} ${DEV}    ${N} ${R}    ${q}"
             echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
-            for k in `seq 1 ${SAMPLES}`;
+            for k in `seq 1 1`;
             do
                 x=`./${BINARY} ${DEV} ${N} ${R} ${q}`
             done
