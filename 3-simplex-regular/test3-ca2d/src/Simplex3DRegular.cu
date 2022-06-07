@@ -213,7 +213,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     case MapType::BOUNDING_BOX:
         cudaEventRecord(start);
 #ifdef MEASURE_POWER
-        GPUPowerBegin(this->n, 100, 0, std::string("BB-") + std::string(this->deviceId));
+        GPUPowerBegin(this->n, 100, 0, std::string("BB-") + std::to_string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
@@ -230,7 +230,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     case MapType::HADOUKEN:
         cudaEventRecord(start);
 #ifdef MEASURE_POWER
-        GPUPowerBegin(this->n, 100, 0, std::string("HAD-") + std::string(this->deviceId));
+        GPUPowerBegin(this->n, 100, 0, std::string("HAD-") + std::to_string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
@@ -247,7 +247,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     case MapType::DYNAMIC_PARALLELISM:
         cudaEventRecord(start);
 #ifdef MEASURE_POWER
-        GPUPowerBegin(this->n, 100, 0, std::string("DP-") + std::string(this->deviceId));
+        GPUPowerBegin(this->n, 100, 0, std::string("DP-") + std::to_string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
