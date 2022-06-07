@@ -27,6 +27,7 @@ echo "STARTING TIME"
 timedatectl
 for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
+    B=$((2**${B}))
     echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
