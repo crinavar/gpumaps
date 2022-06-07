@@ -30,25 +30,24 @@
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
 
-
 // for HADOUKEN
-#define HADO_TOL HADO_FACTOR*BSIZE2D
+#define HADO_TOL HADO_FACTOR* BSIZE2D
 //#define EXTRASPACE
 
 // declaration
-template<typename Lambda>
-__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE *data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
+template <typename Lambda>
+__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE* data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
 
 // integer log2
-__host__ __device__ int cf_log2i(const int val){
+__host__ __device__ int cf_log2i(const int val) {
     int copy = val;
     int r = 0;
-    while (copy >>= 1) 
+    while (copy >>= 1)
         ++r;
     return r;
 }
 
-void print_gpu_specs(int dev){
+void print_gpu_specs(int dev) {
     cudaDeviceProp prop;
     cudaGetDeviceProperties(&prop, dev);
     printf("Device Number: %d\n", dev);
@@ -57,311 +56,300 @@ void print_gpu_specs(int dev){
     printf("  Concurrent Kernels:           %d\n", prop.concurrentKernels);
     printf("  Memory Clock Rate (KHz):      %d\n", prop.memoryClockRate);
     printf("  Memory Bus Width (bits):      %d\n", prop.memoryBusWidth);
-    printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0*prop.memoryClockRate*(prop.memoryBusWidth/8)/1.0e6);
+    printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
 }
 
-void print_array(DTYPE *a, const int n){
-	for(int i=0; i<n; i++)
-		printf("a[%d] = %f\n", i, a[i]);
+void print_array(DTYPE* a, const int n) {
+    for (int i = 0; i < n; i++)
+        printf("a[%d] = %f\n", i, a[i]);
 }
 
-void print_matrix(MTYPE *mat, const int no, const char *msg){
+void print_matrix(MTYPE* mat, const int no, const char* msg) {
     int n = no;
     // writing result to frame
-	for(int i=0; i<n; i++){
-	    for(int j=0; j<n; j++){
-            if(mat[i*n+j] == 0){
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (mat[i * n + j] == 0) {
                 printf("* ");
-            }
-            else{
-                printf("%i ", mat[i*n + j]);
+            } else {
+                printf("%i ", mat[i * n + j]);
             }
         }
         printf("\n");
     }
 }
 
-void print_map(MTYPE *mat, const int no, const char *msg, dim3 grid, dim3 block){
+void print_map(MTYPE* mat, const int no, const char* msg, dim3 grid, dim3 block) {
 #ifdef EXTRASPACE
     // mostrar doble
-    int n = 2*no;
+    int n = 2 * no;
 #else
     // mostrar justo
     int n = no;
 #endif
-    int w = grid.x*block.x;
-    int h = grid.y*block.y;
+    int w = grid.x * block.x;
+    int h = grid.y * block.y;
     const int gap = 3;
     const int framex = n + w + gap;
-    const int framey = n > h? n + 5 : h + 5;
+    const int framey = n > h ? n + 5 : h + 5;
 
-    int b=0;
+    int b = 0;
     char frame[framey][framex];
-	for(int i=0; i<framey; i++){
-	    for(int j=0; j<framex; j++){
+    for (int i = 0; i < framey; i++) {
+        for (int j = 0; j < framex; j++) {
             frame[i][j] = ' ';
         }
     }
 
     // writing pspace to frame
-	for(int i=0; i<h; i++){
-	    for(int j=0; j<w; j++){
-            b = 48 + (int)log2f(i/BSIZE2D + 1) + 1;
-            frame[i+2][j] = b;
+    for (int i = 0; i < h; i++) {
+        for (int j = 0; j < w; j++) {
+            b = 48 + (int)log2f(i / BSIZE2D + 1) + 1;
+            frame[i + 2][j] = b;
         }
     }
 
     // writing result to frame
-	for(int i=0; i<n; i++){
-	    for(int j=0; j<n; j++){
-            if(mat[i*n+j] == 0){
-                    frame[i+2][j+w+gap] = 42;
-                    continue;
+    for (int i = 0; i < n; i++) {
+        for (int j = 0; j < n; j++) {
+            if (mat[i * n + j] == 0) {
+                frame[i + 2][j + w + gap] = 42;
+                continue;
             }
-            if(j>i){
-                //if( mat[i*n + j] == 0 ){
-                //    printf("  ");
+            if (j > i) {
+                // if( mat[i*n + j] == 0 ){
+                //     printf("  ");
+                // }
+                // else{
+                // printf("%i ", mat[i*n + j]);
+                frame[i + 2][j + w + gap] = 48 + mat[i * n + j];
                 //}
-                //else{
-                    //printf("%i ", mat[i*n + j]);
-                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
-                //}
-            }
-            else{
-                if( mat[i*n + j] == 0 ){
-                    //printf("%i ", mat[i*n + j]);
-                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
-                }
-                else{
-                    //printf("%i ", mat[i*n + j]);
-                    frame[i+2][j+w+gap] = 48 + mat[i*n + j];
+            } else {
+                if (mat[i * n + j] == 0) {
+                    // printf("%i ", mat[i*n + j]);
+                    frame[i + 2][j + w + gap] = 48 + mat[i * n + j];
+                } else {
+                    // printf("%i ", mat[i*n + j]);
+                    frame[i + 2][j + w + gap] = 48 + mat[i * n + j];
                 }
             }
         }
     }
-	for(int i=0; i<framey; i++){
-	    for(int j=0; j<framex; j++){
+    for (int i = 0; i < framey; i++) {
+        for (int j = 0; j < framex; j++) {
             printf("%c ", frame[i][j]);
         }
         printf("\n");
     }
-    printf("[%s]:\n", msg); fflush(stdout);
+    printf("[%s]:\n", msg);
+    fflush(stdout);
 }
 
-int print_dmat(unsigned int limit, unsigned int n, unsigned int msize, MTYPE *dmat){
-    MTYPE *hmat = (MTYPE*)malloc(sizeof(MTYPE)*msize);
-    cudaMemcpy(hmat, dmat, sizeof(MTYPE)*msize, cudaMemcpyDeviceToHost);
-    if(n <= limit){
+int print_dmat(unsigned int limit, unsigned int n, unsigned int msize, MTYPE* dmat) {
+    MTYPE* hmat = (MTYPE*)malloc(sizeof(MTYPE) * msize);
+    cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
+    if (n <= limit) {
         print_matrix(hmat, n, "host matrix");
     }
     free(hmat);
     return 1;
 }
 
-void last_cuda_error(const char *msg){
-	cudaError_t error = cudaGetLastError();
-	if(error != cudaSuccess){
-		// print the CUDA error message and exit
-		printf("[%s]: CUDA error: %s\n", msg, cudaGetErrorString(error));
-		exit(-1);
-	}
+void last_cuda_error(const char* msg) {
+    cudaError_t error = cudaGetLastError();
+    if (error != cudaSuccess) {
+        // print the CUDA error message and exit
+        printf("[%s]: CUDA error: %s\n", msg, cudaGetErrorString(error));
+        exit(-1);
+    }
 }
 
-
-void fill_random(DTYPE *array, int n){
-	for(int i=0; i<n; i++){
-		array[i] = 100.0f * (float)rand()/(float)RAND_MAX;
+void fill_random(DTYPE* array, int n) {
+    for (int i = 0; i < n; i++) {
+        array[i] = 100.0f * (float)rand() / (float)RAND_MAX;
     }
-} 
+}
 
-void init(unsigned long no, DTYPE **hdata, MTYPE **hmat, DTYPE **ddata, MTYPE **dmat, unsigned long *msize, unsigned long *trisize){
+void init(unsigned long no, DTYPE** hdata, MTYPE** hmat, DTYPE** ddata, MTYPE** dmat, unsigned long* msize, unsigned long* trisize) {
 #ifdef EXTRASPACE
     // mostrar doble
-    unsigned long n = 2*no;
+    unsigned long n = 2 * no;
 #else
     // mostrar justo
     unsigned long n = no;
 #endif
     // Matrix num elements
-	*msize = n*n;
+    *msize = n * n;
     // Lower Matrix num. elements
-    *trisize = n*(n-1)/2;
-	
+    *trisize = n * (n - 1) / 2;
+
     // ???
-	*hdata = (DTYPE*)malloc(sizeof(DTYPE)*n);
-	*hmat = (MTYPE*)malloc(sizeof(MTYPE)*(*msize));
-    for(int i=0; i<*msize; i++){
+    *hdata = (DTYPE*)malloc(sizeof(DTYPE) * n);
+    *hmat = (MTYPE*)malloc(sizeof(MTYPE) * (*msize));
+    for (int i = 0; i < *msize; i++) {
         (*hmat)[i] = 0;
     }
-	fill_random(*hdata, n);
-	cudaMalloc((void **) ddata, sizeof(DTYPE)*n);
+    fill_random(*hdata, n);
+    cudaMalloc((void**)ddata, sizeof(DTYPE) * n);
     last_cuda_error("init: cudaMalloc ddata");
-	cudaMalloc((void **) dmat, sizeof(MTYPE)*(*msize));
+    cudaMalloc((void**)dmat, sizeof(MTYPE) * (*msize));
     last_cuda_error("init: cudaMalloc dmat");
-    cudaMemcpy(*dmat, *hmat, sizeof(MTYPE)*(*msize), cudaMemcpyHostToDevice);
+    cudaMemcpy(*dmat, *hmat, sizeof(MTYPE) * (*msize), cudaMemcpyHostToDevice);
     last_cuda_error("init end:memcpy hmat->dmat");
-	cudaMemcpy(*ddata, *hdata, sizeof(DTYPE)*n, cudaMemcpyHostToDevice);
+    cudaMemcpy(*ddata, *hdata, sizeof(DTYPE) * n, cudaMemcpyHostToDevice);
     last_cuda_error("init end:memcpy hdata->ddata");
 #ifdef DEBUG
-	printf("2-simplex: n=%i  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE)*(*msize)/(1024*1024));
-    if(n <= PRINTLIMIT){
+    printf("2-simplex: n=%i  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE) * (*msize) / (1024 * 1024));
+    if (n <= PRINTLIMIT) {
         print_matrix(*hmat, n, "host matrix");
     }
 #endif
 }
 
-void gen_lambda_pspace(const unsigned int n, dim3 &block, dim3 &grid){
-    block = dim3(BSIZE2D, BSIZE2D, 1); 
-	int sn = (n+block.x-1)/block.x;
-	int sd = sn*(sn+1)/2;
-	int s = ceil(sqrt((double)sd));	
-    printf("%i\n", s);
-   	grid = dim3(s, s, 1);
-}
-
-void gen_bbox_pspace(const unsigned int n, dim3 &block, dim3 &grid){
-    block = dim3(BSIZE2D, BSIZE2D, 1); 
-	grid = dim3( (n + block.x -1)/block.x, (n + block.y - 1)/block.y, 1);	
-}
-
-void gen_rectangle_pspace(const unsigned int n, dim3 &block, dim3 &grid){
-    int rect_evenx = n/2;
-    int rect_oddx = (int)ceil((float)n/2.0f);
+void gen_lambda_pspace(const unsigned int n, dim3& block, dim3& grid) {
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    if(n%2==0){
-        grid = dim3((rect_evenx+block.x-1)/block.x, ((n+1)+block.y-1)/block.y, 1);
-    }
-    else{
-        grid = dim3((rect_oddx+block.x-1)/block.x, (n+block.y-1)/block.y, 1);
+    int sn = (n + block.x - 1) / block.x;
+    int sd = sn * (sn + 1) / 2;
+    int s = ceil(sqrt((double)sd));
+    grid = dim3(s, s, 1);
+}
+
+void gen_bbox_pspace(const unsigned int n, dim3& block, dim3& grid) {
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    grid = dim3((n + block.x - 1) / block.x, (n + block.y - 1) / block.y, 1);
+}
+
+void gen_rectangle_pspace(const unsigned int n, dim3& block, dim3& grid) {
+    int rect_evenx = n / 2;
+    int rect_oddx = (int)ceil((float)n / 2.0f);
+    block = dim3(BSIZE2D, BSIZE2D, 1);
+    if (n % 2 == 0) {
+        grid = dim3((rect_evenx + block.x - 1) / block.x, ((n + 1) + block.y - 1) / block.y, 1);
+    } else {
+        grid = dim3((rect_oddx + block.x - 1) / block.x, (n + block.y - 1) / block.y, 1);
     }
 }
 
-void gen_hadouken_pspace_lower(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+void gen_hadouken_pspace_lower(const unsigned int n, dim3& block, dim3& grid, unsigned int* aux1, unsigned int* aux2, unsigned int* aux3) {
     // lower pow, tetrahedron covering (simplex + lower block)
     int nlow = 1 << ((int)floor(log2f(n)));
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    int nbo = (n + block.x - 1)/block.x;
-    int nb = (nlow + block.x - 1)/block.x;
-    int gx = nb <= 1? nb + 1 : nb;
+    int nbo = (n + block.x - 1) / block.x;
+    int nb = (nlow + block.x - 1) / block.x;
+    int gx = nb <= 1 ? nb + 1 : nb;
     int gy = nbo;
     int extraby = nbo - nb;
-    //printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
-    grid = dim3(ceil((gx-1.0)/2.0), gy+1+extraby, 1);
+    // printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
+    grid = dim3(ceil((gx - 1.0) / 2.0), gy + 1 + extraby, 1);
     /* big blocks for trapezoid tower */
-    *aux1 = nb-1 + extraby;
-    *aux2 = nbo-(nb-1);
-    *aux3 = gy+extraby+1;
-    //printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
+    *aux1 = nb - 1 + extraby;
+    *aux2 = nbo - (nb - 1);
+    *aux3 = gy + extraby + 1;
+    // printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
     /* a -- b  blocks (alternating to the side odd and even for the trapezoid)
-    *aux1 = nb-1;
-    *aux2 = nbo-(nb-1);
-    *aux3 = gy+extraby+1;
-    */
+     *aux1 = nb-1;
+     *aux2 = nbo-(nb-1);
+     *aux3 = gy+extraby+1;
+     */
 #ifdef DEBUG
-	printf("[lower] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+    printf("[lower] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
 }
 
 // covering from greater simplex
-void gen_hadouken_pspace_upper(const unsigned int n, dim3 &block, dim3 &grid, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3){
+void gen_hadouken_pspace_upper(const unsigned int n, dim3& block, dim3& grid, unsigned int* aux1, unsigned int* aux2, unsigned int* aux3) {
     block = dim3(BSIZE2D, BSIZE2D, 1);
     int nu = 1 << ((int)ceil(log2f(n)));
-    int nb = (nu + block.x - 1)/block.x;
-    int gx = nb <= 1? nb + 1 : nb;
+    int nb = (nu + block.x - 1) / block.x;
+    int gx = nb <= 1 ? nb + 1 : nb;
     int gy = nb;
-    grid = dim3(ceil((gx-1.0)/2.0), gy+1, 1);
-    *aux1 = nb-1;
+    grid = dim3(ceil((gx - 1.0) / 2.0), gy + 1, 1);
+    *aux1 = nb - 1;
     *aux2 = 1;
 #ifdef DEBUG
-	printf("[upper] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
+    printf("[upper] block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
 }
 
-void gen_recursive_pspace(const unsigned int n, dim3 &block, dim3 &grid){
+void gen_recursive_pspace(const unsigned int n, dim3& block, dim3& grid) {
     block = dim3(BSIZE2D, BSIZE2D, 1);
     // it is defined later, at each recursive level
-    grid = dim3(1,1,1);
+    grid = dim3(1, 1, 1);
 }
 
-template<typename Lambda>
-double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3){
-	cudaEvent_t start, stop;
-	cudaEventCreate(&start);
-	cudaEventCreate(&stop);
+template <typename Lambda>
+double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3) {
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
     // Warmup
 #ifdef DEBUG
-    printf("warmup.........................."); fflush(stdout);
+    printf("warmup..........................");
+    fflush(stdout);
 #endif
-	for(int i=0; i<REPEATS; i++){
-        kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
+    for (int i = 0; i < REPEATS; i++) {
+        kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
         cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-    printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
+    printf("done\n");
+    fflush(stdout);
+    printf("Benchmarking (%i REPEATS).......", REPEATS);
+    fflush(stdout);
 #endif
     float time = 0.0;
     // measure running time
-    cudaEventRecord(start, 0);	
-    for(int k=0; k<REPEATS; k++){
-        kernel_test<<< grid, block >>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);	
+    cudaEventRecord(start, 0);
+    for (int k = 0; k < REPEATS; k++) {
+        kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
         cudaDeviceSynchronize();
     }
-    cudaEventRecord(stop,0);
+    cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop); // that's our time!
 #ifdef DEBUG
-    printf("done\n"); fflush(stdout);
+    printf("done\n");
+    fflush(stdout);
 #endif
-    time = time/(float)REPEATS;
+    time = time / (float)REPEATS;
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     last_cuda_error("benchmark_map: run");
     return time;
 }
 
-
-
-
-
-
-
-
-unsigned int count_recursions(unsigned int n, int bsize){
+unsigned int count_recursions(unsigned int n, int bsize) {
     unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
     unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
     unsigned int nh = n;
     unsigned int numrec = 0;
-    do{
-        if( hpow - nh < HADO_TOL){
+    do {
+        if (hpow - nh < HADO_TOL) {
             nh = 0;
-        }
-        else{
+        } else {
             nh = nh - lpow;
             lpow = 1 << ((unsigned int)floor(log2f(nh)));
             hpow = 1 << ((unsigned int)ceil(log2f(nh)));
         }
         numrec++;
-    }
-    while(nh > 0);
+    } while (nh > 0);
     return numrec;
 }
 
-void create_grids_streams(unsigned int n, unsigned int numrec, dim3 *grids, dim3 block, unsigned int *aux1, unsigned int *aux2, unsigned int *aux3, cudaStream_t *streams, unsigned int *offsets){
+void create_grids_streams(unsigned int n, unsigned int numrec, dim3* grids, dim3 block, unsigned int* aux1, unsigned int* aux2, unsigned int* aux3, cudaStream_t* streams, unsigned int* offsets) {
     unsigned int lpow = 1 << ((unsigned int)floor(log2f(n)));
     unsigned int hpow = 1 << ((unsigned int)ceil(log2f(n)));
     unsigned int off = 0;
     unsigned int nh = n;
     int nr = 0;
-    do{
-        if( hpow - nh < HADO_TOL){
+    do {
+        if (hpow - nh < HADO_TOL) {
             // case n is close to the next power of two, we do all
             gen_hadouken_pspace_upper(nh, block, grids[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
             offsets[nr] = off;
             nh = 0;
-        }
-        else{
+        } else {
             // case n is far from its next power of two, we continue in halves
             gen_hadouken_pspace_lower(nh, block, grids[nr], &aux1[nr], &aux2[nr], &aux3[nr]);
             offsets[nr] = off;
@@ -372,87 +360,92 @@ void create_grids_streams(unsigned int n, unsigned int numrec, dim3 *grids, dim3
         }
         cudaStreamCreate(&streams[nr]);
         nr++;
-    }
-    while(nh > 0);
+    } while (nh > 0);
 }
 
-void print_grids_offsets(unsigned int numrec, dim3 *grids, dim3 block, unsigned int *offsets){
-    for(int i=0; i<numrec; ++i){
+void print_grids_offsets(unsigned int numrec, dim3* grids, dim3 block, unsigned int* offsets) {
+    for (int i = 0; i < numrec; ++i) {
         printf("[%i] =  block(%i, %i, %i)  grid(%i, %i, %i)   offset = %i\n", i, block.x, block.y, block.z, grids[i].x, grids[i].y, grids[i].z, offsets[i]);
     }
 }
 
-template<typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE *ddata, MTYPE *dmat, Lambda map){
+template <typename Lambda>
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     float time = 0.0;
     unsigned int numrec = count_recursions(n, BSIZE2D);
-    dim3 *grids = (dim3*)malloc(sizeof(dim3)*numrec);
-    unsigned int *offsets  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
-    unsigned int *auxs1  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
-    unsigned int *auxs2  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
-    unsigned int *auxs3  = (unsigned int*)malloc(sizeof(unsigned int)*numrec);
-    cudaStream_t *streams = (cudaStream_t*)malloc(sizeof(cudaStream_t)*numrec);
+    dim3* grids = (dim3*)malloc(sizeof(dim3) * numrec);
+    unsigned int* offsets = (unsigned int*)malloc(sizeof(unsigned int) * numrec);
+    unsigned int* auxs1 = (unsigned int*)malloc(sizeof(unsigned int) * numrec);
+    unsigned int* auxs2 = (unsigned int*)malloc(sizeof(unsigned int) * numrec);
+    unsigned int* auxs3 = (unsigned int*)malloc(sizeof(unsigned int) * numrec);
+    cudaStream_t* streams = (cudaStream_t*)malloc(sizeof(cudaStream_t) * numrec);
     create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
 #ifdef DEBUG
     printf("HADO_TOL = %i\n", HADO_TOL);
     print_grids_offsets(numrec, grids, block, offsets);
 #endif
-    //printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
-    //printf("numrecs = %i\n", numrec);
-    // Warmup
+    // printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
+    // printf("numrecs = %i\n", numrec);
+    //  Warmup
 #ifdef DEBUG
-    printf("warmup.............."); fflush(stdout);
+    printf("warmup..............");
+    fflush(stdout);
 #endif
-    for(int k=0; k<REPEATS; k++){
-	    for(int i=0; i<numrec; ++i){
-            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
-            /* 
+    for (int k = 0; k < REPEATS; k++) {
+        for (int i = 0; i < numrec; ++i) {
+            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+            /*
             #ifdef DEBUG
                 print_dmat(PRINTLIMIT, n, n*n, dmat);
                 printf("press enter...\n");
                 getchar();
             #endif
             */
-	    }
+        }
         cudaDeviceSynchronize();
     }
     last_cuda_error("warmup");
 #ifdef DEBUG
-    printf("done\n"); fflush(stdout);
-    printf("Benchmarking (%i REPEATS).......", REPEATS); fflush(stdout);
+    printf("done\n");
+    fflush(stdout);
+    printf("Benchmarking (%i REPEATS).......", REPEATS);
+    fflush(stdout);
 #endif
     // measure running time
-    cudaEventRecord(start, 0);	
-    //numrec = count_recursions(n, BSIZE2D);
-    //create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
-    #pragma loop unroll
-    for(int k=0; k<REPEATS; ++k){
-	    for(int i=0; i<numrec; ++i){
-            kernel_test<<< grids[i], block, 0, streams[i] >>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
-	    }
+    cudaEventRecord(start, 0);
+// numrec = count_recursions(n, BSIZE2D);
+// create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        for (int i = 0; i < numrec; ++i) {
+            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+        }
         cudaDeviceSynchronize();
     }
-    cudaEventRecord(stop,0);
+    cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
     cudaEventElapsedTime(&time, start, stop);
 
-    time = time/(float)REPEATS;
+    time = time / (float)REPEATS;
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     last_cuda_error("benchmark_map: run");
-    #ifdef DEBUG
-        printf("done\n"); fflush(stdout);
-    #endif
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+#endif
     return time;
 }
 
-int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE *hdata, DTYPE *ddata, MTYPE *hmat, MTYPE *dmat, dim3 grid, dim3 block){
+int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
 #ifdef DEBUG
-    printf("verifying result................"); fflush(stdout);
-    printf("done\n"); fflush(stdout);
+    printf("verifying result................");
+    fflush(stdout);
+    printf("done\n");
+    fflush(stdout);
 #endif
     return 1;
 }
