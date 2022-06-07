@@ -178,46 +178,55 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     }
     uint32_t blockedN = ceil(n / (float)BSIZE3DX);
 
-
-	switch (this->mapType) {
-	case MapType::BOUNDING_BOX:
-		cudaEventRecord(start);
-		for (uint32_t i = 0; i < nTimes; ++i) {
-			kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
-			gpuErrchk(cudaDeviceSynchronize());
-		}
-		cudaEventRecord(stop);
-
-	break;
-	case MapType::HADOUKEN:
-		cudaEventRecord(start);
-		for (uint32_t i = 0; i < nTimes; ++i) {
-			kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
-			kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
-			//  printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
-			gpuErrchk(cudaDeviceSynchronize());
-		}
-		cudaEventRecord(stop);
-
-		break;
-
-	case MapType::DYNAMIC_PARALLELISM:
-		cudaEventRecord(start);
-		for (uint32_t i = 0; i < nTimes; ++i) {
-#ifdef DP
-			kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+    switch (this->mapType) {
+    case MapType::BOUNDING_BOX:
+        cudaEventRecord(start);
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("BB-") + std::string(this->deviceId));
 #endif
-			gpuErrchk(cudaDeviceSynchronize());
-		}
-		cudaEventRecord(stop);
+        for (uint32_t i = 0; i < nTimes; ++i) {
+            kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, blockedN);
+            gpuErrchk(cudaDeviceSynchronize());
+        }
+        cudaEventRecord(stop);
 
+        break;
+    case MapType::HADOUKEN:
+        cudaEventRecord(start);
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("HAD-") + std::string(this->deviceId));
+#endif
+        for (uint32_t i = 0; i < nTimes; ++i) {
+            kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->n, blockedN);
+            kernelHadoukenStrip<<<this->GPUGridAux, this->GPUBlock, 0, streams[1]>>>(this->devData, this->n, blockedN);
+            //  printf("(%i, %i, %i)\n", this->GPUGridAux.x, this->GPUGridAux.y, this->GPUGridAux.z);
+            gpuErrchk(cudaDeviceSynchronize());
+        }
+        cudaEventRecord(stop);
 
-		break;
+        break;
+
+    case MapType::DYNAMIC_PARALLELISM:
+        cudaEventRecord(start);
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("DP-") + std::string(this->deviceId));
+#endif
+        for (uint32_t i = 0; i < nTimes; ++i) {
+#ifdef DP
+            kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+#endif
+            gpuErrchk(cudaDeviceSynchronize());
+        }
+        cudaEventRecord(stop);
+
+        break;
     }
     cudaEventSynchronize(stop);
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
-
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
 #ifdef DEBUG
     printf("\x1b[1mok\n\x1b[0m");
     fflush(stdout);

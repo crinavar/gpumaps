@@ -202,8 +202,8 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     cudaStream_t* streams;
     if (this->mapType == MapType::HADOUKEN) {
         streams = (cudaStream_t*)malloc(sizeof(cudaStream_t) * 2);
-        cudaStreamCreate(&streams[0]);
-        cudaStreamCreate(&streams[1]);
+        gpuErrchk(cudaStreamCreate(&streams[0]));
+        gpuErrchk(cudaStreamCreate(&streams[1]));
     }
 
     MTYPE* devPointerAux;
@@ -212,8 +212,8 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
     switch (this->mapType) {
     case MapType::BOUNDING_BOX:
         cudaEventRecord(start);
-#ifdef READ_POWER
-		GPUPowerBegin(this->n, 100, 0, "BB");
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("BB-") + std::string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelBoundingBox<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
@@ -224,13 +224,13 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             // devDataPong = devPointerAux;
         }
         cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+        cudaEventSynchronize(stop);
 
         break;
     case MapType::HADOUKEN:
         cudaEventRecord(start);
-#ifdef READ_POWER
-		GPUPowerBegin(this->n, 100, 0, "HAD");
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("HAD-") + std::string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
             kernelHadouken<<<this->GPUGrid, this->GPUBlock, 0, streams[0]>>>(this->devData, this->devDataPong, this->n, blockedN, n + 2);
@@ -240,14 +240,14 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+        cudaEventSynchronize(stop);
 
         break;
 
     case MapType::DYNAMIC_PARALLELISM:
         cudaEventRecord(start);
-#ifdef READ_POWER
-		GPUPowerBegin(this->n, 100, 0, "DP");
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("DP-") + std::string(this->deviceId));
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
@@ -257,14 +257,14 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
             std::swap(devData, devDataPong);
         }
         cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
+        cudaEventSynchronize(stop);
 
         break;
     }
     gpuErrchk(cudaPeekAtLastError());
     gpuErrchk(cudaDeviceSynchronize());
-#ifdef READ_POWER
-		GPUPowerEnd();
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
 #endif
 
 #ifdef DEBUG
