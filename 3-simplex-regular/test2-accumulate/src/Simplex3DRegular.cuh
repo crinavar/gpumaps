@@ -14,6 +14,10 @@
 #define CL 0.4807498567691361274405461035933f
 #define CR 0.6933612743506347048433522747859f
 
+#ifdef MEASURE_POWER
+#include "nvmlPower.hpp"
+#endif
+
 enum class MapType {
     BOUNDING_BOX,
     HADOUKEN,

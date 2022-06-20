@@ -1,6 +1,6 @@
 #!/bin/bash
-if [ "$#" -ne 11 ]; then
-    echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE"
+if [ "$#" -ne 12 ]; then
+    echo "run as ./benchmark-blockconf.sh    DEV     STARTB ENDB DB    STARTN ENDN DN     KREPEATS SAMPLES BINARY OUTFILE ARCH"
     exit;
 fi
 DEV=$1
@@ -14,6 +14,7 @@ R=$8
 SAMPLES=$9
 BINARY=${10}
 OUTFILE=${11}
+ARCH=${12}
 HFACTOR=1
 METHODS=("BBox" "Lambda" "Rectangle" "Trapezoid")
 NM=$((${#METHODS[@]}))
@@ -26,10 +27,11 @@ echo "STARTING TIME"
 timedatectl
 for B in `seq ${STARTB} ${DB} ${ENDB}`;
 do
+    B=$((2**${B}))
     echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
-    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR}`
+    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
     echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
@@ -42,7 +44,7 @@ do
             # Chosen MAP
             echo "./${BINARY} ${DEV}    ${N} ${R}    ${q}"
             echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
-            for k in `seq 1 ${SAMPLES}`;
+            for k in `seq 1 1`;
             do
                 x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019`
             done

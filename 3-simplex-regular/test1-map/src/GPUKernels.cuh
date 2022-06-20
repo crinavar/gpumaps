@@ -202,6 +202,31 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
     const uint32_t halfLevelN = levelN >> 1;
     const uint32_t levelNminusOne = levelN - 1;
 
+    // Launch child kernels
+    if (threadIdx.x + threadIdx.y + threadIdx.z + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
+
+        if (levelN > BSIZE3DX) {
+            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+            dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
+
+			cudaStream_t s1, s2;
+			cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+			cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+            kernelDynamicParallelism<<<gridSize, blockSize, 0, s1>>>(data, n, depth + 1, halfLevelN, originX + levelN, originY);
+            kernelDynamicParallelism<<<gridSize, blockSize, 0, s2>>>(data, n, depth + 1, halfLevelN, originX, originY + levelN);
+
+        } else if (levelN == BSIZE3DX) {
+            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+            dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
+
+			cudaStream_t s1, s2;
+			cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+			cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s1>>>(data, n, originX + levelN, originY);
+            kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s2>>>(data, n, originX, originY + levelN);
+        }
+    }
+
     // Map elements directly to data space, both origins coalign.
     auto threadCoord = boundingBoxMap();
     auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
@@ -227,24 +252,6 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
         }
     }
 
-    // Launch child kernels
-    if (threadIdx.x + threadIdx.y + threadIdx.z + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
-
-        if (levelN > BSIZE3DX) {
-            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-            dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
-
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX + levelN, originY);
-            kernelDynamicParallelism<<<gridSize, blockSize>>>(data, n, depth + 1, halfLevelN, originX, originY + levelN);
-
-        } else if (levelN == BSIZE3DX) {
-            dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
-            dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
-
-            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX + levelN, originY);
-            kernelDynamicParallelismBruteForce<<<gridSize, blockSize>>>(data, n, originX, originY + levelN);
-        }
-    }
 
     return;
 }
