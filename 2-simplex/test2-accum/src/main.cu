@@ -34,21 +34,27 @@
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
     if (argc != 5) {
-        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n5 tensor core-hadouken\n\n");
+        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n6 tensor core-hadouken\n\n");
         exit(EXIT_FAILURE);
     }
     unsigned int dev = atoi(argv[1]);
     unsigned int n = atoi(argv[2]);
     unsigned int REPEATS = atoi(argv[3]);
     unsigned int method = atoi(argv[4]);
-    if (method > 5 || method == 0) {
-        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n5 tensor core-hadouken\n\n");
+    if (method > 6 || method == 0) {
+        printf("\nrun as ./prog <dev> <N> <repeats> <map>\nmap:\n1 bbox\n2 lambda\n3 rectangle\n4 hadouken\n5 DP\n6 tensor core-hadouken\n\n");
         exit(EXIT_FAILURE);
     }
-    if (method == 5 && (SUBBLOCK_SIZE != 16 && SUBBLOCK_SIZE != 8)) {
+    if (method == 6 && (SUBBLOCK_SIZE != 16 && SUBBLOCK_SIZE != 8 && BSIZE1D != 1024)) {
         printf("Only 8 and 16 sub block sizes are supported for Tensor Core Hadouken");
         exit(EXIT_FAILURE);
     }
+#ifndef DP
+    if (method == 5) {
+        printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
+        exit(-1);
+    }
+#endif
     cudaSetDevice(dev);
 #ifdef DEBUG
     print_gpu_specs(dev);
@@ -69,6 +75,9 @@ int main(int argc, char** argv) {
         time = hadouken(n, REPEATS);
         break;
     case 5:
+        time = DynamicParallelism(n, REPEATS);
+        break;
+    case 6:
         time = hadouken_tensor_core(n, REPEATS);
         break;
     }

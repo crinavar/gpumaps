@@ -398,4 +398,37 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
     return time * check;
 #endif
 }
+
+double DynamicParallelism(const unsigned long n, const unsigned int REPEATS) {
+#ifdef DEBUG
+    printf("[Dynamic Parallelism]\n");
+#endif
+    DTYPE *hdata, *ddata;
+    MTYPE *hmat, *dmat;
+    unsigned long msize, trisize;
+    dim3 block(BSIZE2D, BSIZE2D);
+    init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);
+#ifdef DEBUG
+    printf("gen_hadouken_pspace(%i, ...)\n", n);
+#endif
+    auto map = [] __device__(const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
+        if (blockIdx.x > blockIdx.y) {
+            return (uint2) { 1, 0 };
+        }
+        return (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
+    };
+    // benchmark
+    double time = benchmark_map_DP(REPEATS, block, n, msize, trisize, ddata, dmat, map);
+    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+    cudaFree(ddata);
+    cudaFree(dmat);
+    free(hdata);
+    free(hmat);
+#ifdef DEBUG
+    return time;
+#else
+    return time * check;
+#endif
+}
+
 #endif

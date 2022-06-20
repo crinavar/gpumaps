@@ -621,6 +621,51 @@ double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigne
     return time;
 }
 
+template <typename Lambda>
+double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map) {
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    float time = 0.0;
+    unsigned int blockedN = (n + block.x - 1) / block.x;
+    unsigned int blockedNHalf = ceil(blockedN / 2.f);
+    dim3 grid = dim3(blockedNHalf, blockedNHalf);
+
+#ifdef DEBUG
+    printf("HADO_TOL = %i\n", HADO_TOL);
+    unsigned int a = 0;
+    print_grids_offsets(1, &grid, block, &a);
+#endif
+
+    last_cuda_error("warmup");
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    printf("Benchmarking (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+    // measure running time
+    cudaEventRecord(start, 0);
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
+        cudaDeviceSynchronize();
+    }
+    cudaEventRecord(stop, 0);
+    cudaEventSynchronize(stop);
+    cudaEventElapsedTime(&time, start, stop);
+
+    time = time / (float)REPEATS;
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    last_cuda_error("benchmark_map: run");
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+#endif
+    return time;
+}
+
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
 #ifdef DEBUG
     printf("verifying result................");
