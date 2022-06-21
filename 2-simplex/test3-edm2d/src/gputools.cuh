@@ -281,16 +281,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-    // Warmup
-#ifdef DEBUG
-    printf("warmup..........................");
-    fflush(stdout);
-#endif
-    for (int i = 0; i < REPEATS; i++) {
-        kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
-        cudaDeviceSynchronize();
-    }
-    last_cuda_error("warmup");
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -389,25 +380,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 #endif
     // printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
     // printf("numrecs = %i\n", numrec);
-    //  Warmup
-#ifdef DEBUG
-    printf("warmup..........................");
-    fflush(stdout);
-#endif
-    for (int k = 0; k < REPEATS; k++) {
-        for (int i = 0; i < numrec; ++i) {
-            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
-            /*
-            #ifdef DEBUG
-                print_dmat(PRINTLIMIT, n, n*n, dmat);
-                printf("press enter...\n");
-                getchar();
-            #endif
-            */
-        }
-        cudaDeviceSynchronize();
-    }
-    last_cuda_error("warmup");
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -457,7 +430,6 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     print_grids_offsets(1, &grid, block, &a);
 #endif
 
-    last_cuda_error("warmup");
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);

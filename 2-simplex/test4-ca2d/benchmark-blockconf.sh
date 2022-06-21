@@ -16,7 +16,7 @@ BINARY=${10}
 OUTFILE=${11}
 ARCH=${12}
 HFACTOR=1
-METHODS=("BBox" "Lambda" "Rectangle" "Trapezoid")
+METHODS=("BBox" "Lambda" "Rectangle" "Hadouken" "DP")
 NM=$((${#METHODS[@]}))
 TMEAN[0]=0
 TVAR[0]=0
@@ -31,8 +31,6 @@ do
     echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
-    COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
-    echo ${COMPILE}
     for N in `seq ${STARTN} ${DN} ${ENDN}`;
     do
         echo "DEV=${DEV}  N=${N} B=${B} R=${R}"
@@ -41,14 +39,17 @@ do
         do
             M=0
             S=0
+            if [ ${q} -eq 5 ]
+            then
+                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} DP=YES HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
+                echo ${COMPILE}            
+            else
+                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
+                echo ${COMPILE}
+            fi
             # Chosen MAP
             echo "./${BINARY} ${DEV}    ${N} ${R}    ${q}"
-            echo -n "[WARMUP] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)................"
-            for k in `seq 1 1`;
-            do
-                x=`./${BINARY} ${DEV} ${N} ${R} ${q} 0.2 7019`
-            done
-            echo "done"
+
             echo -n "[BENCHMARK] ${METHODS[$(($q-1))]} ($q) map (${SAMPLES} Samples)............."
             for k in `seq 1 ${SAMPLES}`;
             do

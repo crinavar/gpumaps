@@ -44,7 +44,7 @@ double bbox(const unsigned long n, const unsigned int REPEATS) {
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
     // check result
-    double check = (float)verify_result(n, 2 * REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata);
@@ -80,8 +80,7 @@ double lambda(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result (2*REPEATS because of the warmup)
-    double check = (float)verify_result(n, 2 * REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata);
@@ -127,7 +126,7 @@ double rectangle(const unsigned long n, const unsigned int REPEATS) {
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
     // check result
-    double check = (float)verify_result(n, 2 * REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, grid, block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata);
@@ -162,7 +161,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, 2 * REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata);
@@ -194,7 +193,7 @@ double DynamicParallelism(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map_DP(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, 2 * REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
     cudaFree(ddata);
     cudaFree(dmat);
     free(hdata);

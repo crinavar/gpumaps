@@ -89,7 +89,6 @@ double lambda(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result (2*REPEATS because of the warmup)
     double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, grid, block);
     cudaFree(ddata);
     cudaFree(dmat);
