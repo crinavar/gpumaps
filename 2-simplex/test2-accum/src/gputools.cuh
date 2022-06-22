@@ -29,8 +29,8 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define DTYPE float
-#define MTYPE char
+#define DTYPE int	
+#define MTYPE int
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
@@ -245,13 +245,11 @@ void gen_hadouken_pspace_lower(const unsigned int n, dim3& block, dim3& grid, un
     int gx = nb <= 1 ? nb + 1 : nb;
     int gy = nbo;
     int extraby = nbo - nb;
-    printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
     grid = dim3(ceil((gx - 1.0) / 2.0), gy + 1 + extraby, 1);
     /* big blocks for trapezoid tower */
     *aux1 = nb - 1 + extraby;
     *aux2 = nbo - (nb - 1);
     *aux3 = gy + extraby + 1;
-    printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
     /* a -- b  blocks (alternating to the side odd and even for the trapezoid)
      *aux1 = nb-1;
      *aux2 = nbo-(nb-1);
@@ -286,13 +284,11 @@ void gen_hadouken_pspace_lower_tensor_core(const unsigned int n, dim3& block, di
     int gx = nb <= 1 ? nb + 1 : nb;
     int gy = nbo;
     int extraby = nbo - nb;
-    printf("n %i   nlow %i   nbo %i  nb %i  s %i\n", n, nlow, nbo, nb, extraby);
     grid = dim3(ceil((gx - 1.0) / 2.0), gy + 1 + extraby, 1);
     /* big blocks for trapezoid tower */
     *aux1 = nb - 1 + extraby;
     *aux2 = nbo - (nb - 1);
     *aux3 = gy + extraby + 1;
-    printf("extra segments = %i  aux1 = %i    aux2 = %i  aux3 = %i  extraby = %i\n", extraby, *aux1, *aux2, *aux3, extraby);
     /* a -- b  blocks (alternating to the side odd and even for the trapezoid)
      *aux1 = nb-1;
      *aux2 = nbo-(nb-1);
@@ -636,7 +632,7 @@ int verify_result(unsigned int n, const unsigned int checkval, const unsigned lo
     unsigned long index;
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
-            index = i * n + j;
+            index = (size_t)i * n + j;
             if (i > j) {
                 if (hmat[index] != checkval) {
 #ifdef DEBUG

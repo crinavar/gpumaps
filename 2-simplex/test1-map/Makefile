@@ -1,8 +1,8 @@
 DEBUG=DUMMY
-BSIZE1D=2
-BSIZE2D=4
+BSIZE1D=1
+BSIZE2D=1
 HADO_FACTOR=1
-ARCH=sm_86
+ARCH=sm_75
 DP=NO
 ifeq (${DP}, NO)
 PARAMS=-O3 -D${DEBUG} -DBSIZE1D=${BSIZE1D} -DBSIZE2D=${BSIZE2D} -DHADO_FACTOR=${HADO_FACTOR} -arch ${ARCH} --std=c++11 --expt-extended-lambda -default-stream per-thread

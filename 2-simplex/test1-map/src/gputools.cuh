@@ -29,8 +29,8 @@
 #include <sys/time.h>
 #include <time.h>
 
-#define DTYPE float
-#define MTYPE char
+#define DTYPE int
+#define MTYPE int
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256

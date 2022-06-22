@@ -49,16 +49,15 @@ double bbox(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, grid, block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 
@@ -89,15 +88,15 @@ double lambda(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, grid, block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 
@@ -134,16 +133,15 @@ double rectangle(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
-    // check result
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, grid, block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 
@@ -189,15 +187,15 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 
@@ -386,15 +384,15 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map_hadouken_tensor_core(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 
@@ -418,15 +416,15 @@ double DynamicParallelism(const unsigned long n, const unsigned int REPEATS) {
     };
     // benchmark
     double time = benchmark_map_DP(REPEATS, block, n, msize, trisize, ddata, dmat, map);
-    double check = (float)verify_result(n, 1, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#ifdef DEBUG
+    double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
+#endif
     cudaFree(ddata);
     cudaFree(dmat);
-    free(hdata);
-    free(hmat);
 #ifdef DEBUG
-    return time;
-#else
     return time * check;
+#else
+    return time;
 #endif
 }
 

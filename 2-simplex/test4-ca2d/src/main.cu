@@ -21,8 +21,8 @@
 //  along with gpumaps.  If not, see <http://www.gnu.org/licenses/>.            //
 //                                                                              //
 //////////////////////////////////////////////////////////////////////////////////
-#define DTYPE char
-#define MTYPE char
+#define DTYPE int
+#define MTYPE int
 #define EPSILON 0.001
 #define WORDLEN 31
 #define MAXSTREAMS 32
