@@ -24,6 +24,10 @@
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
+#ifdef MEASURE_POWER
+#include "nvmlPower.hpp"
+#endif
+
 // integer log2
 __host__ __device__ int cf_log2i(const int val) {
     int copy = val;
@@ -325,7 +329,7 @@ void print_grids_offsets(unsigned int numrec, dim3* grids, dim3 block, unsigned 
 template <typename Lambda>
 double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1,
-    MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3) {
+    MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3, char str[]) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -344,6 +348,9 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     float time = 0.0;
     // measure running time
     cudaEventRecord(start, 0);
+#ifdef MEASURE_POWER
+    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+#endif
     for (int k = 0; k < REPEATS; k++) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
         cudaDeviceSynchronize();
@@ -355,6 +362,10 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
         kernel_test<<<grid, block>>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);
         cudaDeviceSynchronize();
     }
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -381,7 +392,7 @@ template <typename Lambda>
 double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata,
     MTYPE* dmat1, MTYPE* dmat2, Lambda map,
-    unsigned int aux1, unsigned int aux2, unsigned int aux3) {
+    unsigned int aux1, unsigned int aux2, unsigned int aux3, char str[]) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -400,6 +411,9 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     float time = 0.0;
     // measure running time
     cudaEventRecord(start, 0);
+#ifdef MEASURE_POWER
+    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+#endif
     for (int k = 0; k < REPEATS; k++) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
         cudaDeviceSynchronize();
@@ -411,6 +425,10 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
         kernel_test_rectangle<<<grid, block>>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);
         cudaDeviceSynchronize();
     }
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -433,7 +451,7 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map) {
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char str[]) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -462,6 +480,9 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 #endif
     // measure running time
     cudaEventRecord(start, 0);
+#ifdef MEASURE_POWER
+    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+#endif
 // numrec = count_recursions(n, BSIZE2D);
 // create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
 #pragma loop unroll
@@ -480,6 +501,10 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
         }
         cudaDeviceSynchronize();
     }
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -502,7 +527,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 }
 
 template <typename Lambda>
-double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map) {
+double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char str[]) {
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
@@ -526,7 +551,9 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 #endif
     // measure running time
     cudaEventRecord(start, 0);
-
+#ifdef MEASURE_POWER
+    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+#endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
@@ -538,6 +565,10 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
         kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf);
         cudaDeviceSynchronize();
     }
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
+
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);

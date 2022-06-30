@@ -48,7 +48,7 @@ double bbox(const unsigned long n, const unsigned int REPEATS) {
         return (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0, "BB-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -87,7 +87,7 @@ double lambda(const unsigned long n, const unsigned int REPEATS) {
         return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0, "LAMB-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -132,7 +132,7 @@ double rectangle(const unsigned long n, const unsigned int REPEATS) {
         return p;
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0);
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0, "RECT-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -186,7 +186,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
         }
     };
     // benchmark
-    double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map, "HAD-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -383,7 +383,7 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
         }
     };
     // benchmark
-    double time = benchmark_map_hadouken_tensor_core(REPEATS, block, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map_hadouken_tensor_core(REPEATS, block, n, msize, trisize, ddata, dmat, map, "TCHAD-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -415,7 +415,7 @@ double DynamicParallelism(const unsigned long n, const unsigned int REPEATS) {
         return (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     };
     // benchmark
-    double time = benchmark_map_DP(REPEATS, block, n, msize, trisize, ddata, dmat, map);
+    double time = benchmark_map_DP(REPEATS, block, n, msize, trisize, ddata, dmat, map, "DP-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
