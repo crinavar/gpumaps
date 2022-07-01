@@ -349,7 +349,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
     for (int k = 0; k < REPEATS; k++) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
@@ -412,7 +412,7 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
     for (int k = 0; k < REPEATS; k++) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
@@ -481,7 +481,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
 // numrec = count_recursions(n, BSIZE2D);
 // create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
@@ -552,7 +552,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {

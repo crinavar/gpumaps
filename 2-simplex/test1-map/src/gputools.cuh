@@ -302,7 +302,7 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
     for (int k = 0; k < REPEATS; k++) {
         kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
@@ -407,7 +407,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 // numrec = count_recursions(n, BSIZE2D);
 // create_grids_streams(n, numrec, grids, block, auxs1, auxs2, auxs3, streams, offsets);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
@@ -460,7 +460,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
-    GPUPowerBegin(this->n, 100, 0, std::string(str) + std::to_string(this->deviceId));
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::to_string("A100"));
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
