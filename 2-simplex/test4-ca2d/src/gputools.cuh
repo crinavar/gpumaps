@@ -27,6 +27,7 @@
 #ifdef MEASURE_POWER
 #include "nvmlPower.hpp"
 #endif
+#include <string>
 
 // integer log2
 __host__ __device__ int cf_log2i(const int val) {

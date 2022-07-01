@@ -27,6 +27,7 @@
 #ifdef MEASURE_POWER
 #include "nvmlPower.hpp"
 #endif
+#include <string>
 
 #define DTYPE float2
 #define MTYPE float

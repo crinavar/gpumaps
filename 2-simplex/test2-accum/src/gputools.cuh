@@ -30,6 +30,7 @@
 
 #include <cuda.h>
 #include <stdio.h>
+#include <string>
 #include <sys/time.h>
 #include <time.h>
 
