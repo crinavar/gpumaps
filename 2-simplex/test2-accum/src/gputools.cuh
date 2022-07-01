@@ -324,7 +324,7 @@ void gen_recursive_pspace(const unsigned int n, dim3& block, dim3& grid) {
 }
 
 template <typename Lambda>
-double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3, char str[]) {
+double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -457,7 +457,7 @@ void print_grids_offsets(unsigned int numrec, dim3* grids, dim3 block, unsigned 
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char str[]) {
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -518,7 +518,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char str[]) {
+double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -597,7 +597,7 @@ double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigne
 }
 
 template <typename Lambda>
-double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char str[]) {
+double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);

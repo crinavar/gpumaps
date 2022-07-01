@@ -329,7 +329,7 @@ void print_grids_offsets(unsigned int numrec, dim3* grids, dim3 block, unsigned 
 template <typename Lambda>
 double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1,
-    MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3, char str[]) {
+    MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -392,7 +392,7 @@ template <typename Lambda>
 double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
     unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata,
     MTYPE* dmat1, MTYPE* dmat2, Lambda map,
-    unsigned int aux1, unsigned int aux2, unsigned int aux3, char str[]) {
+    unsigned int aux1, unsigned int aux2, unsigned int aux3, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -451,7 +451,7 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char str[]) {
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -527,7 +527,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 }
 
 template <typename Lambda>
-double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char str[]) {
+double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned long msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat1, MTYPE* dmat2, Lambda map, char* str) {
 
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
