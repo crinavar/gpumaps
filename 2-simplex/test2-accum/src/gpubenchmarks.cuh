@@ -161,12 +161,12 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
     // trapezoid map
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
         // (1) optimzized version: just arithmetic and bit-level operations
-        /*
+
         const unsigned int h = WORDLEN - __clz(blockIdx.y + 1);
         const unsigned int qb = blockIdx.x & (MAX_UINT << h);
         const unsigned int k = (aux1 - (int)blockIdx.y) >> 31;
         return (uint2) { (blockIdx.x + qb + (k & gridDim.x)) * blockDim.x + aux3 + threadIdx.x, (blockIdx.y - (k & aux2) + (qb << 1)) * blockDim.x + aux3 + threadIdx.y };
-*/
+
         // (2) normal version: arithmetic, bit and logical operations
         /*
         const unsigned int h    = WORDLEN - __clz(blockIdx.y+1);
@@ -176,14 +176,15 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
         */
 
         // (3) simple version: no programming tricks
-
-        if (aux1 >= blockIdx.y) {
-            const unsigned int h = WORDLEN - __clz(blockIdx.y + 1);
-            const unsigned int qb = (blockIdx.x >> h) * (1 << h);
-            return (uint2) { aux3 + (blockIdx.x + qb) * blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1)) * blockDim.y + threadIdx.y };
-        } else {
-            return (uint2) { aux3 + (blockIdx.x + gridDim.x) * blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2) * blockDim.y + threadIdx.y };
-        }
+        /*
+                if (aux1 >= blockIdx.y) {
+                    const unsigned int h = WORDLEN - __clz(blockIdx.y + 1);
+                    const unsigned int qb = (blockIdx.x >> h) * (1 << h);
+                    return (uint2) { aux3 + (blockIdx.x + qb) * blockDim.x + threadIdx.x, aux3 + (blockIdx.y + (qb << 1)) * blockDim.y + threadIdx.y };
+                } else {
+                    return (uint2) { aux3 + (blockIdx.x + gridDim.x) * blockDim.x + threadIdx.x, aux3 + (blockIdx.y - aux2) * blockDim.y + threadIdx.y };
+                }
+                */
     };
     // benchmark
     double time = benchmark_map_hadouken(REPEATS, block, n, msize, trisize, ddata, dmat, map, "HAD-");
