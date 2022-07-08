@@ -28,6 +28,7 @@
 #define BB 2000
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
+#define MAX_DEPTH 2
 
 // rules
 #define EL 2
@@ -224,49 +225,102 @@ __global__ void kernel_test_rectangle(const unsigned int n, const unsigned long 
         }
     }
 }
+
+
 // kernel test DP
 // Root kernel process the square of ceil(n/2) in the middle of the triangle
 // Then launches 2 child kernels to process the upper triangle and the lower right one.
 // Well... actually, it launches the child kernel first, since there is no dependency
 template <typename Lambda>
-__global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlockedN, DTYPE* data, MTYPE* dmat1, MTYPE* dmat2, Lambda map, const unsigned int x0, const unsigned int y0) {
+__global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlockedN, DTYPE* data, MTYPE* dmat1, MTYPE* dmat2, Lambda map, const unsigned int x0, const unsigned int y0, uint32_t depth) {
     int levelBlockedNHalf = ceil(levelBlockedN / 2.f);
     // Launch 2 child kernels
 
     // if (threadIdx.x + blockIdx.x + threadIdx.y + blockIdx.y == 0) {
     //     printf("(%i, %i)(%i,%i) -> %i\n", blockIdx.x, blockIdx.y, threadIdx.x, threadIdx.y, levelBlockedN);
     // }
-    if (levelBlockedN > 1) {
+    int2 p;
+    //__shared__ MTYPE cache[CSPACE];
+
+        int offset = blockDim.x - n%blockDim.x;
+        
+    if (depth + 1 < MAX_DEPTH && levelBlockedNHalf > 1){
         if (threadIdx.x + blockIdx.x + threadIdx.y + blockIdx.y == 0) {
 #ifdef DP
+            int nextLevelGridSize = ceil(levelBlockedNHalf/2.f);
+            //printf("starting at %i, %i, levelblockedN: %i\n", x0, y0, levelBlockedN);
+            //printf("launcher kernels of grid(%i, %i)\n", nextLevelGridSize, nextLevelGridSize);
+            //printf("up(%i, %i), right(%i, %i)\n", x0, y0-nextLevelGridSize, x0+levelBlockedNHalf, y0 +levelBlockedNHalf-nextLevelGridSize);
 
             cudaStream_t s1;
             cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
             cudaStream_t s2;
             cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
 
-            dim3 grid = dim3(levelBlockedNHalf, levelBlockedNHalf);
-            kernel_test_DP<<<grid, blockDim, 0, s1>>>(n, levelBlockedNHalf, data, dmat1, dmat2, map, x0, y0 - levelBlockedNHalf);
-            kernel_test_DP<<<grid, blockDim, 0, s2>>>(n, levelBlockedNHalf, data, dmat1, dmat2, map, x0 + levelBlockedN, y0 + levelBlockedN - levelBlockedNHalf);
+            dim3 grid = dim3(nextLevelGridSize, nextLevelGridSize);
+            //printf("Nestgrid(%i,%i)\n", nextLevelGridSize, nextLevelGridSize);
+            kernel_test_DP<<<grid, blockDim, 0, s1>>>(n, levelBlockedNHalf, data, dmat1, dmat2, map, x0, y0 - nextLevelGridSize, depth+1);
+            kernel_test_DP<<<grid, blockDim, 0, s2>>>(n, levelBlockedNHalf, data, dmat1, dmat2, map, x0 + levelBlockedNHalf, y0 - nextLevelGridSize + levelBlockedNHalf, depth+1);
 #endif
         }
-    }
+        
+    } else {
+        // process top and right as BF
+        // Process data
+        p = (int2) { blockIdx.x + x0, blockIdx.y + y0 - levelBlockedNHalf};
+        if (p.y >= 0){
+            //if (threadIdx.x + threadIdx.y==0)
+            //printf("%i, %i\n", p.x, p.y);
+            p.x = p.x * blockDim.x + threadIdx.x;
+            p.y = p.y * blockDim.y + threadIdx.y;
+
+
+            //load_cache(cache, dmat1, n, threadIdx, p);
+
+            if (p.y >= p.x && p.y < n) {
+                // if(p.y < n){
+                work_nocache(data, dmat1, dmat2, p, n);
+
+                //work_anoIcache(data, dmat1, dmat2, cache, threadIdx, p, n);
+            }
+
+        }
+        // Process data
+        p.x = blockIdx.x + x0 + levelBlockedNHalf;
+        p.y = blockIdx.y + y0 ;
+        if (p.x <= (n+blockDim.x-1)/blockDim.x ){
+            p.x = p.x * blockDim.x + threadIdx.x;
+            p.y = p.y * blockDim.y + threadIdx.y;
+
+            //load_cache(cache, dmat1, n, threadIdx, p);
+
+            if (p.y >= p.x && p.y < n) {
+            //if (p.y >= p.x && p.y < n) {
+                // if(p.y < n){
+                work_nocache(data, dmat1, dmat2, p, n);
+
+                //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+            }
+        }
+    }    
     // Process data
-    auto p = (int2) { blockIdx.x + x0, blockIdx.y + y0 };
+    p = (int2) { blockIdx.x + x0, blockIdx.y + y0 };
+            //printf("( %i )(x0 %i, y0 %i) block (%i, %i) -> p (%i, %i)\n", depth, x0, y0, blockIdx.x, blockIdx.y, p.x, p.y);
     if (p.x > p.y) {
         return;
     }
+            
     p.x = p.x * blockDim.x + threadIdx.x;
     p.y = p.y * blockDim.y + threadIdx.y;
+        //printf("%i, %i\n", p.x, p.y);
 
-    __shared__ MTYPE cache[CSPACE];
-    load_cache(cache, dmat1, n, threadIdx, p);
+    //load_cache(cache, dmat1, n, threadIdx, p);
 
     if (p.y >= p.x && p.y < n) {
         // if(p.y < n){
-        // work_nocache(data, dmat1, dmat2, p, n);
+        work_nocache(data, dmat1, dmat2, p, n);
 
-        work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+        //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
     }
 }
 

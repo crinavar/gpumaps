@@ -221,6 +221,7 @@ __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong,
 // Depth is the current level being mapped
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
+#define MAX_DEPTH 1
 __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY, uint32_t nWithHalo) {
 
     const uint32_t halfLevelN = levelN >> 1;
@@ -229,7 +230,7 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
     // Launch child kernels
     if (threadIdx.x + threadIdx.y + threadIdx.z + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
 
-        if (levelN > BSIZE3DX) {
+        if (levelN > BSIZE3DX && depth+1<MAX_DEPTH) {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
             cudaStream_t s1, s2;
@@ -239,7 +240,7 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s1>>>(data, dataPong, n, depth + 1, halfLevelN, originX + levelN, originY, nWithHalo);
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s2>>>(data, dataPong, n, depth + 1, halfLevelN, originX, originY + levelN, nWithHalo);
 
-        } else if (levelN == BSIZE3DX) {
+        } else if (levelN == BSIZE3DX || depth+1==MAX_DEPTH) {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
             cudaStream_t s1, s2;
