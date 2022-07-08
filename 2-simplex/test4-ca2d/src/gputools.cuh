@@ -559,11 +559,11 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     for (int k = 0; k < REPEATS; ++k) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
         cudaDeviceSynchronize();
-        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat1, dmat2, map, 0, blockedN - blockedNHalf);
+        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat1, dmat2, map, 0, blockedN - blockedNHalf, 1);
 
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
-        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf);
+        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf, 1);
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER
@@ -590,7 +590,59 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     return time;
 }
 
+
+#include <png.h>
+void save_image(const char *filename, int *dwells, uint64_t w, uint64_t h,
+                unsigned int MAX_DWELL, int SAVE_FLAG) {
+    png_bytep row;
+
+    FILE *fp = fopen(filename, "wb");
+    png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
+    png_infop info_ptr = png_create_info_struct(png_ptr);
+    // exception handling
+    setjmp(png_jmpbuf(png_ptr));
+    png_init_io(png_ptr, fp);
+    // write header (8 bit colour depth)
+    png_set_IHDR(png_ptr, info_ptr, w, h, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+    // set title
+    png_text title_text;
+    const char* title = "Title";
+    const char* text = "CA, per-pixel";
+
+    title_text.compression = PNG_TEXT_COMPRESSION_NONE;
+
+    title_text.key = (png_charp)title;
+    title_text.text = (png_charp)text;
+
+    png_set_text(png_ptr, info_ptr, &title_text, 1);
+    png_write_info(png_ptr, info_ptr);
+
+    // write image data/
+
+    row = (png_bytep)malloc(3 * w * sizeof(png_byte));
+    for (uint64_t y = 0; y < h; y++) {
+        for (uint64_t x = 0; x < w; x++) {
+            int r, g, b;
+            r = dwells[y * w + x]*255;
+            row[3 * x + 0] = (png_byte)r;
+            row[3 * x + 1] = (png_byte)r;
+            row[3 * x + 2] = (png_byte)r;
+        }
+        png_write_row(png_ptr, row);
+    }
+    png_write_end(png_ptr, NULL);
+
+    fclose(fp);
+    png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
+    png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+    free(row);
+} // save_image
+
 int verify_result(unsigned int n, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat) {
+    
+    cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
+    save_image("CA.png", hmat, n+2, n+2, 1, 0);
     return 1;
 }
 #endif
