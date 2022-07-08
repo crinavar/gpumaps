@@ -626,7 +626,8 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
-        kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
+        //kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
+        kernelDP_exp<<<1,1>>>(n, dmat, 0, 0, 512);
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER

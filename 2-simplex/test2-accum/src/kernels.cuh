@@ -39,7 +39,7 @@ __device__ void work(DTYPE* data, MTYPE* mat, uint2 p, int n, const int a) {
 
 __device__ void workSubBlock(DTYPE* data, MTYPE* mat, uint2 p, int n, const int a) {
     // (1) constant write
-    unsigned long i = (unsigned long)p.y * n + (unsigned long)p.x;
+    //unsigned long i = (unsigned long)p.y * n + (unsigned long)p.x;
     // mat[i] += a;
     // mat[i] = a;
 
@@ -116,4 +116,43 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
     }
 }
 
+// O(n^2) number of threads for work
+__global__ void kernelDP_work(int n, MTYPE *data, int offX, int offY){
+    // Process data
+    auto p = (uint2) {blockIdx.x, blockIdx.y};
+    if (p.x > p.y){
+        return;
+    }
+    p.x = p.x * blockDim.x + threadIdx.x + offX;
+    p.y = p.y * blockDim.y + threadIdx.y + offY;
+    if(p.y >= p.x && p.y < n){
+        work(NULL, data, p, n, 1);
+    }
+}
+
+// 1 thread does exploration
+__global__ void kernelDP_exp(int n, MTYPE* data, int x0, int y0, int MIN_SIZE){
+    #ifdef DP
+        // 1) stopping case
+        if(n <= MIN_SIZE){
+            dim3 gridLeaf = dim3((n+blockDim.x-1)/blockDim.x, (n+blockDim.y-1)/blockDim.y, 1);
+            kernelDP_work<<<gridLeaf, blockDim>>>(n, data, x0, y0);
+            return;
+        }
+        // 2) explore up and right asynchronously
+        cudaStream_t s1, s2, s3;
+        cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+        cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+        cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
+        int n2 = (n >> 1) + (n & 1);
+        // up
+        kernelDP_exp<<<1,1,0,s1>>>(n2, data, x0     , y0     , MIN_SIZE);
+        // bottom right
+        kernelDP_exp<<<1,1,0,s2>>>(n2, data, x0 + n2, y0 + n2, MIN_SIZE);
+
+        // 3) work in the bot middle
+        dim3 gridNode = dim3((n2+blockDim.x-1)/blockDim.x, (n2+blockDim.y-1)/blockDim.y, 1);
+        kernelDP_work<<<gridNode, blockDim,0,s3>>>(n, data, x0, y0 + n2);
+    #endif
+}
 #endif
