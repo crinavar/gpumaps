@@ -116,35 +116,32 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
     }
 }
 
-// O(n^2) number of threads for work
-__global__ void kernelDP_work(int n, int globalN, MTYPE *data, int offX, int offY){
+// O(n^2) number of threads for work (on = original n)
+__global__ void kernelDP_work(int on, int n, MTYPE *data, int offX, int offY){
     // Process data
-    //if(threadIdx.x + threadIdx.y + blockIdx.x + blockIdx.y == 0)
-    //printf("KernelWork n: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, offX, offY, gridDim.x, gridDim.y);
-    auto p = (uint2) {blockIdx.x, blockIdx.y};
-    p.x = p.x * blockDim.x + threadIdx.x;
-    p.y = p.y * blockDim.y + threadIdx.y;
-    if (p.x >= n || p.y >= n){
+    auto p = (uint2) {blockIdx.x*blockDim.x + threadIdx.x, blockIdx.y*blockDim.y + threadIdx.y};
+    //printf("thread at local x=%i  y=%i\n", p.x, p.y);
+    if(p.x >= n || p.y >= n){
+        //printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
         return;
     }
     p.x = p.x + offX;
     p.y = p.y + offY;
-    //printf("KernelWork n: %i, offX: %i, offY: %i\ngrid(%i, %i)\n", n, offX, offY, gridDim.x, gridDim.y);
-    //printf("p(%i,%i) - with off -> %i,%i\n", p.x-offX, p.y-offY, p.x, p.y);
-    if(p.y >= p.x && p.y < globalN){
-        work(NULL, data, p, globalN, 1);
+    //printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
+    if(p.y >= p.x && p.y < on){
+        //printf("work at x=%i  y=%i\n", p.x, p.y);
+        work(NULL, data, p, on, 1);
     }
 }
 
-// 1 thread does exploration
-__global__ void kernelDP_exp(int n, int globalN, MTYPE* data, int x0, int y0, int MIN_SIZE){
+// 1 thread does exploration (on = original n)
+__global__ void kernelDP_exp(int on, int n, MTYPE* data, int x0, int y0, int MIN_SIZE){
     #ifdef DP
         // 1) stopping case
         if(n <= MIN_SIZE){
-            dim3 gridLeaf = dim3((n+BSIZE2D-1)/BSIZE2D, (n+BSIZE2D-1)/BSIZE2D, 1);
-            dim3 blockLeaf = dim3(BSIZE2D, BSIZE2D, 1);
-            //printf("minsizen: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, x0, y0, gridDim.x, gridDim.y);
-            kernelDP_work<<<gridLeaf, blockLeaf>>>(n, globalN, data, x0, y0);
+            dim3 bleaf(BSIZE2D, BSIZE2D), gleaf = dim3((n+bleaf.x-1)/bleaf.x, (n+bleaf.y-1)/bleaf.y, 1);
+            //printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+            kernelDP_work<<<gleaf, bleaf>>>(on, n, data, x0, y0);
             return;
         }
         // 2) explore up and right asynchronously
@@ -152,20 +149,18 @@ __global__ void kernelDP_exp(int n, int globalN, MTYPE* data, int x0, int y0, in
         cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
         cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
         cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
-        int n2 = (n >> 1) + (n & 1);
-        int nLeft = n-n2;
+        int subn = (n >> 1) + (n & 1);
+        int n2 = n >> 1;
+        //printf("subn %i\nn2 %i\n", subn, n2);
         // up
-        kernelDP_exp<<<1,1,0,s1>>>(nLeft, globalN, data, x0     , y0     , MIN_SIZE);
+        kernelDP_exp<<<1,1,0,s1>>>(on, n2, data, x0       , y0       , MIN_SIZE);
         // bottom right
-        kernelDP_exp<<<1,1,0,s2>>>(nLeft, globalN, data, x0 + n2, y0 + n2, MIN_SIZE);
-
+        kernelDP_exp<<<1,1,0,s2>>>(on, n2, data, x0 + subn, y0 + subn, MIN_SIZE);
         // 3) work in the bot middle
-        //printf("n2: %i\n", n2);
-        dim3 gridNode = dim3((n2+BSIZE2D-1)/BSIZE2D, (n2+BSIZE2D-1)/BSIZE2D, 1);
-        //printf("KernelWork n: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, x0, y0, gridDim.x, gridDim.y);
-        dim3 blockLeaf = dim3(BSIZE2D, BSIZE2D, 1);
-        kernelDP_work<<<gridNode, blockLeaf,0,s3>>>(n2, globalN, data, x0, y0 + nLeft);
+        dim3 bnode(BSIZE2D, BSIZE2D);
+        dim3 gnode = dim3((subn+bnode.x-1)/bnode.x, (subn+bnode.y-1)/bnode.y, 1);
+        //printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, subn, subn);
+        kernelDP_work<<<gnode, bnode, 0, s3>>>(on, subn, data, x0, y0 + n2);
     #endif
 }
-
 #endif

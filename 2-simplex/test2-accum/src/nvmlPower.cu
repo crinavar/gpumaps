@@ -219,7 +219,7 @@ void CPUPowerBegin(int N, int data_type, int nt) {
 // Stop measuring CPU power
 void CPUPowerEnd() {
     // printf("CPUPowerEnd"); fflush(stdout);
-    double ckWh = 3600000.0;
+    //double ckWh = 3600000.0;
     usleep(1000 * COOLDOWN_MS);
     CPUpollThreadStatus = false;
     pthread_join(CPUpowerPollThread, 0);
@@ -239,7 +239,7 @@ void CPUPowerEnd() {
 // CPU power measure thread
 void* CPUpowerPollingFunc(void* ptr) {
     int timestep = 0;
-    double dt = 0.0, acctime = 0.0, accenergy = 0.0, power = 0.0;
+    //double dt = 0.0, acctime = 0.0, accenergy = 0.0, power = 0.0;
     FILE* fp = fopen(CPUfilename.c_str(), "w+");
     fprintf(fp, "%-15s, %-15s, %-15s, %-15s, %-15s, %-15s,\n", "#timestep", "power", "acc-energy", "avg-power", "dt", "acc-time");
     while (CPUpollThreadStatus) {
