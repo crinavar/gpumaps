@@ -39,7 +39,7 @@
 #define WORDLEN 31
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
-
+#include "kernels.cuh"
 // for HADOUKEN
 #define HADO_TOL HADO_FACTOR* BSIZE2D
 
@@ -627,7 +627,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
         //kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
-        kernelDP_exp<<<1,1>>>(n, dmat, 0, 0, 512);
+        kernelDP_exp<<<1,1>>>(n, n, dmat, 0, 0, 16384);
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER

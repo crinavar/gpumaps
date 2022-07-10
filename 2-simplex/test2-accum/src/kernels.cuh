@@ -117,26 +117,34 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 }
 
 // O(n^2) number of threads for work
-__global__ void kernelDP_work(int n, MTYPE *data, int offX, int offY){
+__global__ void kernelDP_work(int n, int globalN, MTYPE *data, int offX, int offY){
     // Process data
+    //if(threadIdx.x + threadIdx.y + blockIdx.x + blockIdx.y == 0)
+    //printf("KernelWork n: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, offX, offY, gridDim.x, gridDim.y);
     auto p = (uint2) {blockIdx.x, blockIdx.y};
-    if (p.x > p.y){
+    p.x = p.x * blockDim.x + threadIdx.x;
+    p.y = p.y * blockDim.y + threadIdx.y;
+    if (p.x >= n || p.y >= n){
         return;
     }
-    p.x = p.x * blockDim.x + threadIdx.x + offX;
-    p.y = p.y * blockDim.y + threadIdx.y + offY;
-    if(p.y >= p.x && p.y < n){
-        work(NULL, data, p, n, 1);
+    p.x = p.x + offX;
+    p.y = p.y + offY;
+    //printf("KernelWork n: %i, offX: %i, offY: %i\ngrid(%i, %i)\n", n, offX, offY, gridDim.x, gridDim.y);
+    //printf("p(%i,%i) - with off -> %i,%i\n", p.x-offX, p.y-offY, p.x, p.y);
+    if(p.y >= p.x && p.y < globalN){
+        work(NULL, data, p, globalN, 1);
     }
 }
 
 // 1 thread does exploration
-__global__ void kernelDP_exp(int n, MTYPE* data, int x0, int y0, int MIN_SIZE){
+__global__ void kernelDP_exp(int n, int globalN, MTYPE* data, int x0, int y0, int MIN_SIZE){
     #ifdef DP
         // 1) stopping case
         if(n <= MIN_SIZE){
-            dim3 gridLeaf = dim3((n+blockDim.x-1)/blockDim.x, (n+blockDim.y-1)/blockDim.y, 1);
-            kernelDP_work<<<gridLeaf, blockDim>>>(n, data, x0, y0);
+            dim3 gridLeaf = dim3((n+BSIZE2D-1)/BSIZE2D, (n+BSIZE2D-1)/BSIZE2D, 1);
+            dim3 blockLeaf = dim3(BSIZE2D, BSIZE2D, 1);
+            //printf("minsizen: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, x0, y0, gridDim.x, gridDim.y);
+            kernelDP_work<<<gridLeaf, blockLeaf>>>(n, globalN, data, x0, y0);
             return;
         }
         // 2) explore up and right asynchronously
@@ -145,14 +153,19 @@ __global__ void kernelDP_exp(int n, MTYPE* data, int x0, int y0, int MIN_SIZE){
         cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
         cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
         int n2 = (n >> 1) + (n & 1);
+        int nLeft = n-n2;
         // up
-        kernelDP_exp<<<1,1,0,s1>>>(n2, data, x0     , y0     , MIN_SIZE);
+        kernelDP_exp<<<1,1,0,s1>>>(nLeft, globalN, data, x0     , y0     , MIN_SIZE);
         // bottom right
-        kernelDP_exp<<<1,1,0,s2>>>(n2, data, x0 + n2, y0 + n2, MIN_SIZE);
+        kernelDP_exp<<<1,1,0,s2>>>(nLeft, globalN, data, x0 + n2, y0 + n2, MIN_SIZE);
 
         // 3) work in the bot middle
-        dim3 gridNode = dim3((n2+blockDim.x-1)/blockDim.x, (n2+blockDim.y-1)/blockDim.y, 1);
-        kernelDP_work<<<gridNode, blockDim,0,s3>>>(n, data, x0, y0 + n2);
+        //printf("n2: %i\n", n2);
+        dim3 gridNode = dim3((n2+BSIZE2D-1)/BSIZE2D, (n2+BSIZE2D-1)/BSIZE2D, 1);
+        //printf("KernelWork n: %i, offX: %i, offY: %i  grid(%i, %i)\n", n, x0, y0, gridDim.x, gridDim.y);
+        dim3 blockLeaf = dim3(BSIZE2D, BSIZE2D, 1);
+        kernelDP_work<<<gridNode, blockLeaf,0,s3>>>(n2, globalN, data, x0, y0 + nLeft);
     #endif
 }
+
 #endif
