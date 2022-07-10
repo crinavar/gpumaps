@@ -24,15 +24,17 @@
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
-#ifdef MEASURE_POWER
-#include "nvmlPower.hpp"
-#endif
-
 #include <cuda.h>
 #include <stdio.h>
 #include <string>
 #include <sys/time.h>
 #include <time.h>
+#include <cmath>
+#include <iostream>
+#ifdef MEASURE_POWER
+#include "nvmlPower.hpp"
+#endif
+
 
 #define DTYPE int
 #define MTYPE int
@@ -40,8 +42,16 @@
 #define MAXSTREAMS 32
 #define PRINTLIMIT 256
 #include "kernels.cuh"
+
 // for HADOUKEN
 #define HADO_TOL HADO_FACTOR* BSIZE2D
+
+// for DP
+#ifndef DP_DEPTH
+    #define DP_DEPTH 3
+#endif
+
+#define OPT_MINSIZE 2048
 
 //#define EXTRASPACE
 
@@ -71,8 +81,10 @@ void print_gpu_specs(int dev) {
 }
 
 void print_array(DTYPE* a, const int n) {
-    for (int i = 0; i < n; i++)
-        printf("a[%d] = %f\n", i, a[i]);
+    for (int i = 0; i < n; i++){
+        printf("a[%d] = ", i);
+        std::cout << a[i] << std::endl;
+    }
 }
 
 void print_matrix(MTYPE* mat, const int no, const char* msg) {
@@ -210,7 +222,7 @@ void init(unsigned long no, DTYPE** hdata, MTYPE** hmat, DTYPE** ddata, MTYPE** 
     cudaMemcpy(*ddata, *hdata, sizeof(DTYPE) * n, cudaMemcpyHostToDevice);
     last_cuda_error("init end:memcpy hdata->ddata");
 #ifdef DEBUG
-    printf("2-simplex: n=%i  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE) * (*msize) / (1024 * 1024));
+    printf("2-simplex: n=%lu  msize=%lu (%f MBytes)\n", n, *msize, (float)sizeof(MTYPE) * (*msize) / (1024 * 1024));
     if (n <= PRINTLIMIT) {
         print_matrix(*hmat, n, "host matrix");
     }
@@ -325,7 +337,7 @@ void gen_recursive_pspace(const unsigned int n, dim3& block, dim3& grid) {
 }
 
 template <typename Lambda>
-double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3, char* str) {
+double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3, const char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -458,7 +470,7 @@ void print_grids_offsets(unsigned int numrec, dim3* grids, dim3 block, unsigned 
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
+double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -519,7 +531,7 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 }
 
 template <typename Lambda>
-double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
+double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
@@ -598,41 +610,41 @@ double benchmark_map_hadouken_tensor_core(const int REPEATS, dim3 block, unsigne
 }
 
 template <typename Lambda>
-double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, char* str) {
+double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned int msize, unsigned int trisize, DTYPE* ddata, MTYPE* dmat, Lambda map, const char* str) {
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
     float time = 0.0;
-    unsigned int blockedN = (n + block.x - 1) / block.x;
-    unsigned int blockedNHalf = ceil(blockedN / 2.f);
-    dim3 grid = dim3(blockedNHalf, blockedNHalf);
-
-#ifdef DEBUG
-    printf("HADO_TOL = %i\n", HADO_TOL);
-    unsigned int a = 0;
-    print_grids_offsets(1, &grid, block, &a);
-#endif
-
-#ifdef DEBUG
-    printf("done\n");
-    fflush(stdout);
-    printf("Benchmarking (%i REPEATS).......", REPEATS);
-    fflush(stdout);
-#endif
+    unsigned int expVal;
+    unsigned int minSize;
+    if(DP_DEPTH >= 0){
+        expVal= max((int)ceil(log2f(n)) - DP_DEPTH, 0);
+        minSize = 1 << expVal;
+    }
+    else{
+        minSize = OPT_MINSIZE;
+    }
+    #ifdef DEBUG
+        printf("DP_DEPTH = %i\n", DP_DEPTH);
+        printf("exponent = %i\n", expVal);
+        printf("minSize = %i\n", minSize);
+        fflush(stdout);
+        printf("Benchmarking (%i REPEATS).......", REPEATS);
+        fflush(stdout);
+    #endif
     // measure running time
     cudaEventRecord(start, 0);
-#ifdef MEASURE_POWER
-    GPUPowerBegin(n, 100, 0, std::string(str) + std::string("A100"));
-#endif
-#pragma loop unroll
+    #ifdef MEASURE_POWER
+        GPUPowerBegin(n, 100, 0, std::string(str) + std::string("A100"));
+    #endif
+    #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
-        //kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
-        kernelDP_exp<<<1,1>>>(n, n, dmat, 0, 0, 16384);
+        kernelDP_exp<<<1,1>>>(n, n, dmat, 0, 0, minSize);
         cudaDeviceSynchronize();
     }
-#ifdef MEASURE_POWER
-    GPUPowerEnd();
-#endif
+    #ifdef MEASURE_POWER
+        GPUPowerEnd();
+    #endif
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -642,50 +654,51 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     last_cuda_error("benchmark_map: run");
-#ifdef DEBUG
-    printf("done\n");
-    fflush(stdout);
-#endif
+    #ifdef DEBUG
+        printf("done\n");
+        fflush(stdout);
+    #endif
     return time;
 }
 
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
-#ifdef DEBUG
-    printf("verifying result................");
-    fflush(stdout);
-#endif
+    #ifdef DEBUG
+        printf("verifying result................");
+        fflush(stdout);
+    #endif
+    //return 1;
     cudaMemcpy(hdata, ddata, sizeof(DTYPE) * n, cudaMemcpyDeviceToHost);
     cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
-#ifdef DEBUG
-    printf("done\n");
-    fflush(stdout);
-    if (n <= PRINTLIMIT) {
-        print_map(hmat, n, "host matrix", grid, block);
-    }
-#endif
+    #ifdef DEBUG
+        printf("done\n");
+        fflush(stdout);
+        if (n <= PRINTLIMIT) {
+            print_map(hmat, n, "host matrix", grid, block);
+        }
+    #endif
     unsigned long index;
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
             index = (size_t)i * n + j;
             if (i > j) {
                 if (hmat[index] != checkval) {
-#ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-#endif
+                    #ifdef DEBUG
+                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    #endif
                     return 0;
                 }
             } else if (i < j) {
                 if (hmat[index] != 0) {
-#ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-#endif
+                    #ifdef DEBUG
+                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    #endif
                     return 0;
                 }
             } else if (i == j) {
                 if (hmat[index] != 0 && hmat[index] != checkval) {
-#ifdef DEBUG
-                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-#endif
+                    #ifdef DEBUG
+                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+                    #endif
                     return 0;
                 }
             }

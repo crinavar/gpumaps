@@ -48,7 +48,7 @@ double bbox(const unsigned long n, const unsigned int REPEATS) {
         return (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     };
     // benchmark
-    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0, "BB-");
+    double time = benchmark_map(REPEATS, block, grid, n, msize, trisize, ddata, dmat, map, 0, 0, 0, (const char*)"BB-");
 #ifdef DEBUG
     double check = (float)verify_result(n, REPEATS, msize, hdata, ddata, hmat, dmat, dim3(0, 0, 0), block);
 #endif
@@ -156,7 +156,7 @@ double hadouken(const unsigned long n, const unsigned int REPEATS) {
     dim3 block(BSIZE2D, BSIZE2D);
     init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);
 #ifdef DEBUG
-    printf("gen_hadouken_pspace(%i, ...)\n", n);
+    printf("gen_hadouken_pspace(%lu, ...)\n", n);
 #endif
     // trapezoid map
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
@@ -211,7 +211,7 @@ double hadouken_tensor_core(const unsigned long n, const unsigned int REPEATS) {
     dim3 block(BSIZE2D, BSIZE2D);
     init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);
 #ifdef DEBUG
-    printf("gen_hadouken_tensor_core_pspace(%i, ...)\n", n);
+    printf("gen_hadouken_tensor_core_pspace(%lu, ...)\n", n);
 #endif
     // trapezoid map
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const int aux1, const int aux2, const int aux3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
@@ -406,9 +406,6 @@ double DynamicParallelism(const unsigned long n, const unsigned int REPEATS) {
     unsigned long msize, trisize;
     dim3 block(BSIZE2D, BSIZE2D);
     init(n, &hdata, &hmat, &ddata, &dmat, &msize, &trisize);
-#ifdef DEBUG
-    printf("gen_hadouken_pspace(%i, ...)\n", n);
-#endif
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
         if (blockIdx.x > blockIdx.y) {
             return (uint2) { 1, 0 };
