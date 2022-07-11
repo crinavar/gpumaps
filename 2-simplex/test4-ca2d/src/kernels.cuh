@@ -28,7 +28,6 @@
 #define BB 2000
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
-#define MAX_DEPTH 2
 
 // rules
 #define EL 2
@@ -183,12 +182,12 @@ __device__ __inline__ void load_cache_rectangle(MTYPE* cache, MTYPE* mat, unsign
 ///*
 template <typename Lambda>
 __global__ void kernel_test(const unsigned int n, const unsigned long msize, DTYPE* data, MTYPE* dmat1, MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3) {
-    __shared__ MTYPE cache[CSPACE];
+    //__shared__ MTYPE cache[CSPACE];
     auto p = map(n, msize, aux1, aux2, aux3);
-    load_cache(cache, dmat1, n, threadIdx, p);
+    //load_cache(cache, dmat1, n, threadIdx, p);
     if (p.x <= p.y && p.y < n) {
-        work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
-        // work_nocache(data, dmat1, dmat2, p, n);
+        //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+         work_nocache(data, dmat1, dmat2, p, n);
     }
 }
 //*/
@@ -199,7 +198,7 @@ __global__ void kernel_test_rectangle(const unsigned int n, const unsigned long 
     // map
     auto p = map(n, msize, aux1, aux2, aux3);
     // cache
-    __shared__ MTYPE cache[CSPACE];
+    //__shared__ MTYPE cache[CSPACE];
     if (blockIdx.x == blockIdx.y) {
         // printf("THREAD IN DIAG\n");
         //  block diagonal - no cache
@@ -209,19 +208,19 @@ __global__ void kernel_test_rectangle(const unsigned int n, const unsigned long 
     } else if (blockIdx.x < blockIdx.y) {
         // printf("THREAD IN BOT\n");
         //  lower triangular - standard cache
-        load_cache_rectangle(cache, dmat1, n, threadIdx, p);
+        //load_cache_rectangle(cache, dmat1, n, threadIdx, p);
         if (p.x <= p.y && p.y < n) {
-            work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
-            // work_nocache(data, dmat1, dmat2, p, n);
+            //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+             work_nocache(data, dmat1, dmat2, p, n);
         }
     } else {
         // printf("THREAD IN UPPER\n");
         //  upper triangular - inverted cache
         uint3 invlp = (uint3) { BSIZE2D - 1 - threadIdx.x, BSIZE2D - 1 - threadIdx.y, 0 };
-        load_cache_rectangle(cache, dmat1, n, invlp, p);
+        //load_cache_rectangle(cache, dmat1, n, invlp, p);
         if (p.x <= p.y && p.y < n) {
-            work_cache(data, dmat1, dmat2, cache, invlp, p, n);
-            // work_nocache(data, dmat1, dmat2, p, n);
+            //work_cache(data, dmat1, dmat2, cache, invlp, p, n);
+             work_nocache(data, dmat1, dmat2, p, n);
         }
     }
 }
@@ -243,7 +242,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 
     int offset = blockDim.x - n % blockDim.x;
 
-    if (depth + 1 < MAX_DEPTH && levelBlockedNHalf > 1) {
+    if (/*depth + 1 < MAX_DEPTH &&*/ levelBlockedNHalf > 1) {
         if (threadIdx.x + blockIdx.x + threadIdx.y + blockIdx.y == 0) {
 #ifdef DP
             int nextLevelGridSize = ceil(levelBlockedNHalf / 2.f);
@@ -324,7 +323,8 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 // O(n^2) number of threads for work (on = original n)
 __global__ void kernelDP_work(int on, int n, MTYPE* dmat1, MTYPE* dmat2, int offX, int offY) {
     // Process data
-    auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
+    //__shared__ MTYPE cache[CSPACE];
+    auto p = (int2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     // printf("thread at local x=%i  y=%i\n", p.x, p.y);
     if (p.x >= n || p.y >= n) {
         // printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
@@ -332,10 +332,12 @@ __global__ void kernelDP_work(int on, int n, MTYPE* dmat1, MTYPE* dmat2, int off
     }
     p.x = p.x + offX;
     p.y = p.y + offY;
+    //load_cache(cache, dmat1, on, threadIdx, p);
     // printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
     if (p.y >= p.x && p.y < on) {
         // printf("work at x=%i  y=%i\n", p.x, p.y);
-        work_nocache(data, dmat1, dmat2, p, n);
+        //work_cache(NULL, dmat1, dmat2, cache, threadIdx, p, on);
+        work_nocache(NULL, dmat1, dmat2, p, on);
     }
 }
 
