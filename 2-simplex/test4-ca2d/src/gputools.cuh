@@ -27,6 +27,14 @@
 #ifdef MEASURE_POWER
 #include "nvmlPower.hpp"
 #endif
+
+// for DP
+#ifndef DP_DEPTH
+#define DP_DEPTH 3
+#endif
+
+#define OPT_MINSIZE 2048
+
 #include <string>
 
 // integer log2
@@ -538,19 +546,22 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     unsigned int blockedNHalf = ceil(blockedN / 2.f);
     dim3 grid = dim3(blockedNHalf, blockedNHalf);
 
+    unsigned int expVal;
+    unsigned int minSize;
+    if (DP_DEPTH >= 0) {
+        expVal = max((int)ceil(log2f(n)) - DP_DEPTH, 0);
+        minSize = 1 << expVal;
+    } else {
+        minSize = OPT_MINSIZE;
+    }
 #ifdef DEBUG
-    printf("HADO_TOL = %i\n", HADO_TOL);
-    unsigned int a = 0;
-    print_grids_offsets(1, &grid, block, &a);
-#endif
-
-#ifdef DEBUG
-    printf("done\n");
+    printf("DP_DEPTH = %i\n", DP_DEPTH);
+    printf("exponent = %i\n", expVal);
+    printf("minSize = %i\n", minSize);
     fflush(stdout);
     printf("Benchmarking (%i REPEATS).......", REPEATS);
     fflush(stdout);
-#endif
-    // measure running time
+#endif // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
     GPUPowerBegin(n, 100, 0, std::string(str) + std::string("A100"));
@@ -559,11 +570,14 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     for (int k = 0; k < REPEATS; ++k) {
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
         cudaDeviceSynchronize();
-        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat1, dmat2, map, 0, blockedN - blockedNHalf, 1);
+        // kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat1, dmat2, map, 0, blockedN - blockedNHalf, 1);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat1, dmat2, 0, 0, minSize);
 
         kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
         cudaDeviceSynchronize();
-        kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf, 1);
+        // kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf, 1);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat2, dmat1, 0, 0, minSize);
+
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER
@@ -590,13 +604,12 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     return time;
 }
 
-
 #include <png.h>
-void save_image(const char *filename, int *dwells, uint64_t w, uint64_t h,
-                unsigned int MAX_DWELL, int SAVE_FLAG) {
+void save_image(const char* filename, int* dwells, uint64_t w, uint64_t h,
+    unsigned int MAX_DWELL, int SAVE_FLAG) {
     png_bytep row;
 
-    FILE *fp = fopen(filename, "wb");
+    FILE* fp = fopen(filename, "wb");
     png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, 0, 0, 0);
     png_infop info_ptr = png_create_info_struct(png_ptr);
     // exception handling
@@ -604,7 +617,7 @@ void save_image(const char *filename, int *dwells, uint64_t w, uint64_t h,
     png_init_io(png_ptr, fp);
     // write header (8 bit colour depth)
     png_set_IHDR(png_ptr, info_ptr, w, h, 8, PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
-                 PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
+        PNG_COMPRESSION_TYPE_BASE, PNG_FILTER_TYPE_BASE);
     // set title
     png_text title_text;
     const char* title = "Title";
@@ -624,7 +637,7 @@ void save_image(const char *filename, int *dwells, uint64_t w, uint64_t h,
     for (uint64_t y = 0; y < h; y++) {
         for (uint64_t x = 0; x < w; x++) {
             int r, g, b;
-            r = dwells[y * w + x]*255;
+            r = dwells[y * w + x] * 255;
             row[3 * x + 0] = (png_byte)r;
             row[3 * x + 1] = (png_byte)r;
             row[3 * x + 2] = (png_byte)r;
@@ -640,9 +653,9 @@ void save_image(const char *filename, int *dwells, uint64_t w, uint64_t h,
 } // save_image
 
 int verify_result(unsigned int n, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat) {
-    
+
     cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
-    save_image("CA.png", hmat, n+2, n+2, 1, 0);
+    save_image("CA.png", hmat, n + 2, n + 2, 1, 0);
     return 1;
 }
 #endif

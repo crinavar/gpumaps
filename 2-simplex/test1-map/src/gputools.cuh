@@ -44,6 +44,13 @@
 #define HADO_TOL HADO_FACTOR* BSIZE2D
 //#define EXTRASPACE
 
+// for DP
+#ifndef DP_DEPTH
+#define DP_DEPTH 3
+#endif
+
+#define OPT_MINSIZE 2048
+
 // declaration
 template <typename Lambda>
 __global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE* data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
@@ -446,18 +453,23 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     unsigned int blockedNHalf = ceil(blockedN / 2.f);
     dim3 grid = dim3(blockedNHalf, blockedNHalf);
 
+    unsigned int expVal;
+    unsigned int minSize;
+    if (DP_DEPTH >= 0) {
+        expVal = max((int)ceil(log2f(n)) - DP_DEPTH, 0);
+        minSize = 1 << expVal;
+    } else {
+        minSize = OPT_MINSIZE;
+    }
 #ifdef DEBUG
-    printf("HADO_TOL = %i\n", HADO_TOL);
-    unsigned int a = 0;
-    print_grids_offsets(1, &grid, block, &a);
-#endif
-
-#ifdef DEBUG
-    printf("done\n");
+    printf("DP_DEPTH = %i\n", DP_DEPTH);
+    printf("exponent = %i\n", expVal);
+    printf("minSize = %i\n", minSize);
     fflush(stdout);
     printf("Benchmarking (%i REPEATS).......", REPEATS);
     fflush(stdout);
 #endif
+
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
@@ -465,7 +477,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
-        kernel_test_DP<<<grid, block>>>(n, blockedNHalf, dmat, map, 0, blockedN - blockedNHalf);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat, 0, 0, minSize);
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER

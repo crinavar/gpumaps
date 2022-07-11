@@ -24,17 +24,16 @@
 #ifndef GPUTOOLS
 #define GPUTOOLS
 
+#include <cmath>
 #include <cuda.h>
+#include <iostream>
 #include <stdio.h>
 #include <string>
 #include <sys/time.h>
 #include <time.h>
-#include <cmath>
-#include <iostream>
 #ifdef MEASURE_POWER
 #include "nvmlPower.hpp"
 #endif
-
 
 #define DTYPE int
 #define MTYPE int
@@ -48,7 +47,7 @@
 
 // for DP
 #ifndef DP_DEPTH
-    #define DP_DEPTH 3
+#define DP_DEPTH 3
 #endif
 
 #define OPT_MINSIZE 2048
@@ -81,7 +80,7 @@ void print_gpu_specs(int dev) {
 }
 
 void print_array(DTYPE* a, const int n) {
-    for (int i = 0; i < n; i++){
+    for (int i = 0; i < n; i++) {
         printf("a[%d] = ", i);
         std::cout << a[i] << std::endl;
     }
@@ -617,34 +616,33 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     float time = 0.0;
     unsigned int expVal;
     unsigned int minSize;
-    if(DP_DEPTH >= 0){
-        expVal= max((int)ceil(log2f(n)) - DP_DEPTH, 0);
+    if (DP_DEPTH >= 0) {
+        expVal = max((int)ceil(log2f(n)) - DP_DEPTH, 0);
         minSize = 1 << expVal;
-    }
-    else{
+    } else {
         minSize = OPT_MINSIZE;
     }
-    #ifdef DEBUG
-        printf("DP_DEPTH = %i\n", DP_DEPTH);
-        printf("exponent = %i\n", expVal);
-        printf("minSize = %i\n", minSize);
-        fflush(stdout);
-        printf("Benchmarking (%i REPEATS).......", REPEATS);
-        fflush(stdout);
-    #endif
+#ifdef DEBUG
+    printf("DP_DEPTH = %i\n", DP_DEPTH);
+    printf("exponent = %i\n", expVal);
+    printf("minSize = %i\n", minSize);
+    fflush(stdout);
+    printf("Benchmarking (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
     // measure running time
     cudaEventRecord(start, 0);
-    #ifdef MEASURE_POWER
-        GPUPowerBegin(n, 100, 0, std::string(str) + std::string("A100"));
-    #endif
-    #pragma loop unroll
+#ifdef MEASURE_POWER
+    GPUPowerBegin(n, 100, 0, std::string(str) + std::string("A100"));
+#endif
+#pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
-        kernelDP_exp<<<1,1>>>(n, n, dmat, 0, 0, minSize);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat, 0, 0, minSize);
         cudaDeviceSynchronize();
     }
-    #ifdef MEASURE_POWER
-        GPUPowerEnd();
-    #endif
+#ifdef MEASURE_POWER
+    GPUPowerEnd();
+#endif
 
     cudaEventRecord(stop, 0);
     cudaEventSynchronize(stop);
@@ -654,51 +652,51 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     cudaEventDestroy(start);
     cudaEventDestroy(stop);
     last_cuda_error("benchmark_map: run");
-    #ifdef DEBUG
-        printf("done\n");
-        fflush(stdout);
-    #endif
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+#endif
     return time;
 }
 
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
-    #ifdef DEBUG
-        printf("verifying result................");
-        fflush(stdout);
-    #endif
-    //return 1;
+#ifdef DEBUG
+    printf("verifying result................");
+    fflush(stdout);
+#endif
+    // return 1;
     cudaMemcpy(hdata, ddata, sizeof(DTYPE) * n, cudaMemcpyDeviceToHost);
     cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
-    #ifdef DEBUG
-        printf("done\n");
-        fflush(stdout);
-        if (n <= PRINTLIMIT) {
-            print_map(hmat, n, "host matrix", grid, block);
-        }
-    #endif
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    if (n <= PRINTLIMIT) {
+        print_map(hmat, n, "host matrix", grid, block);
+    }
+#endif
     unsigned long index;
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
             index = (size_t)i * n + j;
             if (i > j) {
                 if (hmat[index] != checkval) {
-                    #ifdef DEBUG
-                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-                    #endif
+#ifdef DEBUG
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+#endif
                     return 0;
                 }
             } else if (i < j) {
                 if (hmat[index] != 0) {
-                    #ifdef DEBUG
-                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-                    #endif
+#ifdef DEBUG
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+#endif
                     return 0;
                 }
             } else if (i == j) {
                 if (hmat[index] != 0 && hmat[index] != checkval) {
-                    #ifdef DEBUG
-                        fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
-                    #endif
+#ifdef DEBUG
+                    fprintf(stderr, "[Verify] invalid element at hmat[%i,%i](%lu) = %i (checkval = %i)\n", i, j, index, hmat[index], checkval);
+#endif
                     return 0;
                 }
             }
