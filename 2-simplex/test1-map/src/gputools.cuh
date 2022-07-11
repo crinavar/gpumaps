@@ -51,6 +51,7 @@
 
 #define OPT_MINSIZE 2048
 
+#include "kernels.cuh"
 // declaration
 template <typename Lambda>
 __global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE* data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);

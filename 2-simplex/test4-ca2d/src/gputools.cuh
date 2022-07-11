@@ -35,6 +35,7 @@
 
 #define OPT_MINSIZE 2048
 
+#include "kernels.cuh"
 #include <string>
 
 // integer log2
