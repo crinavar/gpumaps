@@ -47,9 +47,7 @@
 
 #define OPT_MINSIZE 2048
 
-// declaration
-template <typename Lambda>
-__global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize, DTYPE* data, MTYPE* dmat, Lambda map, const unsigned int aux1, const unsigned int aux2, const unsigned int aux3);
+#include "kernels.cuh"
 
 // integer log2
 __host__ __device__ int cf_log2i(const int val) {
@@ -473,7 +471,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 #endif
 #pragma loop unroll
     for (int k = 0; k < REPEATS; ++k) {
-        kernelDP_exp<<<1, 1>>>(n, n, dmat, 0, 0, minSize);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat, ddata, 0, 0, minSize);
         cudaDeviceSynchronize();
     }
 #ifdef MEASURE_POWER
@@ -497,7 +495,6 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 }
 
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
-    return 1;
 #ifdef DEBUG
     printf("verifying.......................");
     fflush(stdout);

@@ -27,10 +27,11 @@
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
 
+
 __device__ void work(DTYPE* data, MTYPE* mat, uint2 p, int n) {
     DTYPE a = data[p.x];
     DTYPE b = data[p.y];
-    mat[p.y * n + p.x] = 1; /// sqrtf((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    mat[p.y * n + p.x] = sqrt((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
     // printf("%f\n", mat[p.y*n + p.x]);
 }
 
@@ -83,7 +84,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 }
 
 // O(n^2) number of threads for work (on = original n)
-__global__ void kernelDP_work(int on, int n, MTYPE* data, int offX, int offY) {
+__global__ void kernelDP_work(int on, int n, MTYPE* data, DTYPE* wat, int offX, int offY) {
     // Process data
     auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     // printf("thread at local x=%i  y=%i\n", p.x, p.y);
@@ -95,19 +96,19 @@ __global__ void kernelDP_work(int on, int n, MTYPE* data, int offX, int offY) {
     p.y = p.y + offY;
     // printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
     if (p.y >= p.x && p.y < on) {
-        // printf("work at x=%i  y=%i\n", p.x, p.y);
-        work(NULL, data, p, on, 1);
+        //printf("work at x=%i  y=%i\n", p.x, p.y);
+        work(wat, data, p, on);
     }
 }
 
 // 1 thread does exploration (on = original n)
-__global__ void kernelDP_exp(int on, int n, MTYPE* data, int x0, int y0, int MIN_SIZE) {
+__global__ void kernelDP_exp(int on, int n, MTYPE* data, DTYPE* wat, int x0, int y0, int MIN_SIZE) {
 #ifdef DP
     // 1) stopping case
     if (n <= MIN_SIZE) {
         dim3 bleaf(BSIZE2D, BSIZE2D), gleaf = dim3((n + bleaf.x - 1) / bleaf.x, (n + bleaf.y - 1) / bleaf.y, 1);
         // printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
-        kernelDP_work<<<gleaf, bleaf>>>(on, n, data, x0, y0);
+        kernelDP_work<<<gleaf, bleaf>>>(on, n, data, wat, x0, y0);
         return;
     }
     // 2) explore up and right asynchronously
@@ -119,14 +120,14 @@ __global__ void kernelDP_exp(int on, int n, MTYPE* data, int x0, int y0, int MIN
     int n2 = n >> 1;
     // printf("subn %i\nn2 %i\n", subn, n2);
     //  up
-    kernelDP_exp<<<1, 1, 0, s1>>>(on, n2, data, x0, y0, MIN_SIZE);
+    kernelDP_exp<<<1, 1, 0, s1>>>(on, n2, data, wat, x0, y0, MIN_SIZE);
     // bottom right
-    kernelDP_exp<<<1, 1, 0, s2>>>(on, n2, data, x0 + subn, y0 + subn, MIN_SIZE);
+    kernelDP_exp<<<1, 1, 0, s2>>>(on, n2, data, wat, x0 + subn, y0 + subn, MIN_SIZE);
     // 3) work in the bot middle
     dim3 bnode(BSIZE2D, BSIZE2D);
     dim3 gnode = dim3((subn + bnode.x - 1) / bnode.x, (subn + bnode.y - 1) / bnode.y, 1);
     // printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, subn, subn);
-    kernelDP_work<<<gnode, bnode, 0, s3>>>(on, subn, data, x0, y0 + n2);
+    kernelDP_work<<<gnode, bnode, 0, s3>>>(on, subn, data, wat, x0, y0 + n2);
 #endif
 }
 #endif
