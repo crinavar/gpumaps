@@ -30,7 +30,7 @@
 
 // for DP
 #ifndef DP_DEPTH
-#define DP_DEPTH 3
+#define DP_DEPTH -1
 #endif
 
 #define OPT_MINSIZE 2048
