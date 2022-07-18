@@ -28,10 +28,10 @@
 //#define OFFSET 0.5f
 
 
-__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, int n) {
+__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, unsigned int n) {
     DTYPE a = data[p.x];
     DTYPE b = data[p.y];
-    mat[p.y * n + p.x] = sqrt((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    mat[p.y * (size_t)n + p.x] = sqrtf((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
     // printf("%f\n", mat[p.y*n + p.x]);
 }
 

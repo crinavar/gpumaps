@@ -42,7 +42,7 @@ do
             if [ ${q} -eq 5 ]
             then
                 COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} DP=YES HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
-                echo ${COMPILE}            
+                echo ${COMPILE}
             else
                 COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
                 echo ${COMPILE}
@@ -75,9 +75,9 @@ do
         echo ""
         echo ""
         echo ""
-    done 
+    done
     echo " "
-done 
+done
 echo "END TIME"
 timedatectl
 echo "*******************************"
