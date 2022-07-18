@@ -30,7 +30,8 @@
 __device__ void work(DTYPE* data, MTYPE* mat, uint2 p, unsigned int n) {
     DTYPE a = data[p.x];
     DTYPE b = data[p.y];
-    mat[p.y * (size_t)n + p.x] = sqrtf((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    size_t i = p.y * (size_t)n + p.x;
+    mat[i] = sqrtf((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
     // printf("%f\n", mat[p.y*n + p.x]);
 }
 

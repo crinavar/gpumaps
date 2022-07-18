@@ -70,14 +70,14 @@ void print_gpu_specs(int dev) {
     printf("  Peak Memory Bandwidth (GB/s): %f\n\n", 2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
 }
 
-void print_array(DTYPE* a, const int n) {
+void print_array(DTYPE* a, const unsigned int n) {
     for (int i = 0; i < n; i++)
         printf("a[%d] = %f\n", i, a[i]);
 }
 
-void print_matrix(MTYPE* mat, const int no, const char* msg) {
+void print_matrix(MTYPE* mat, const unsigned int no, const char* msg) {
     printf("%s:\n", msg);
-    int n = no;
+    unsigned int n = no;
     // writing result to frame
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
@@ -91,13 +91,13 @@ void print_matrix(MTYPE* mat, const int no, const char* msg) {
     }
 }
 
-void print_map(MTYPE* mat, const int no, const char* msg, dim3 grid, dim3 block) {
+void print_map(MTYPE* mat, const unsigned int no, const char* msg, dim3 grid, dim3 block) {
 #ifdef EXTRASPACE
     // mostrar doble
-    int n = 2 * no;
+    unsigned int n = 2 * no;
 #else
     // mostrar justo
-    int n = no;
+    unsigned int n = no;
 #endif
     int w = grid.x * block.x;
     int h = grid.y * block.y;
@@ -176,9 +176,9 @@ void last_cuda_error(const char* msg) {
     }
 }
 
-void fill_random(DTYPE* array, int n) {
-    for (int i = 0; i < n; i++) {
-        array[i] = (float2) { 100.0f * (float)rand() / (float)RAND_MAX, 100.0f * (float)rand() / (float)RAND_MAX };
+void fill_random(DTYPE* array, unsigned int n) {
+    for (unsigned int i = 0; i < n; i++) {
+        array[i] = (float2) { 10.0f * (float)rand() / (float)RAND_MAX, 10.0f * (float)rand() / (float)RAND_MAX };
     }
 }
 
@@ -195,7 +195,7 @@ void init(unsigned long no, DTYPE** hdata, MTYPE** hmat, DTYPE** ddata, MTYPE** 
 
     *hdata = (DTYPE*)malloc(sizeof(DTYPE) * n);
     *hmat = (MTYPE*)malloc(sizeof(MTYPE) * (*msize));
-    for (int i = 0; i < *msize; i++) {
+    for (size_t i = 0; i < *msize; i++) {
         (*hmat)[i] = -1.0f;
     }
     fill_random(*hdata, n);
@@ -504,12 +504,12 @@ int verify_result(unsigned int n, const unsigned int checkval, const unsigned lo
     float epsilon = 0.0001f;
     cudaMemcpy(hdata, ddata, sizeof(DTYPE) * n, cudaMemcpyDeviceToHost);
     cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j <= i; ++j) {
+    for (unsigned int i = 0; i < n; ++i) {
+        for (unsigned int j = 0; j <= i; ++j) {
             DTYPE a = hdata[i];
             DTYPE b = hdata[j];
             float val = sqrtf((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
-            if (fabs(val - hmat[i * n + j]) > epsilon) {
+            if (fabs(val - hmat[i * (size_t)n + j]) > epsilon) {
 #ifdef DEBUG
                 fprintf(stderr, "error at [i, j] = [%i, %i], edm2d\nCPU %f\nGPU %f\n", i, j, val, hmat[i * n + j]);
 #endif
