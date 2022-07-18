@@ -26,7 +26,7 @@
 
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
-__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, int n, const int a) {
+__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, unsigned int n, const int a) {
     return;
 }
 // metodo kernel test
@@ -79,7 +79,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 }
 
 // O(n^2) number of threads for work (on = original n)
-__global__ void kernelDP_work(int on, int n, MTYPE* data, int offX, int offY) {
+__global__ void kernelDP_work(int on, unsigned int n, MTYPE* data, unsigned int offX, unsigned int offY) {
     // Process data
     auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     // printf("thread at local x=%i  y=%i\n", p.x, p.y);
@@ -97,7 +97,7 @@ __global__ void kernelDP_work(int on, int n, MTYPE* data, int offX, int offY) {
 }
 
 // 1 thread does exploration (on = original n)
-__global__ void kernelDP_exp(int on, int n, MTYPE* data, int x0, int y0, int MIN_SIZE) {
+__global__ void kernelDP_exp(int on, unsigned int n, MTYPE* data, unsigned int x0, unsigned int y0, unsigned int MIN_SIZE) {
 #ifdef DP
     // 1) stopping case
     if (n <= MIN_SIZE) {
