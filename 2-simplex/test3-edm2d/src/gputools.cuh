@@ -217,10 +217,11 @@ void init(unsigned long no, DTYPE** hdata, MTYPE** hmat, DTYPE** ddata, MTYPE** 
 
 void gen_lambda_pspace(const unsigned int n, dim3& block, dim3& grid) {
     block = dim3(BSIZE2D, BSIZE2D, 1);
-    int sn = (n + block.x - 1) / block.x;
-    int sd = sn * (sn + 1) / 2;
-    int s = ceil(sqrt((double)sd));
+    unsigned int sn = (n + block.x - 1) / block.x;
+    unsigned int sd = sn * (sn + 1) / 2;
+    unsigned int s = ceil(sqrt((double)sd));
     grid = dim3(s, s, 1);
+    // printf("GRID(%i,%i)\n", s,s);
 }
 
 void gen_bbox_pspace(const unsigned int n, dim3& block, dim3& grid) {
@@ -495,6 +496,7 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
 }
 
 int verify_result(unsigned int n, const unsigned int checkval, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat, dim3 grid, dim3 block) {
+    // return 1;
 #ifdef DEBUG
     printf("verifying.......................");
     fflush(stdout);

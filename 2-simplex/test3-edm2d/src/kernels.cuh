@@ -27,11 +27,10 @@
 #define OFFSET -0.4999f
 //#define OFFSET 0.5f
 
-
-__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, int n) {
+__device__ void work(DTYPE* data, MTYPE* mat, uint2 p, unsigned int n) {
     DTYPE a = data[p.x];
     DTYPE b = data[p.y];
-    mat[p.y * n + p.x] = sqrt((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+    mat[p.y * (size_t)n + p.x] = sqrtf((float)(a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
     // printf("%f\n", mat[p.y*n + p.x]);
 }
 
@@ -96,7 +95,7 @@ __global__ void kernelDP_work(int on, int n, MTYPE* data, DTYPE* wat, int offX, 
     p.y = p.y + offY;
     // printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
     if (p.y >= p.x && p.y < on) {
-        //printf("work at x=%i  y=%i\n", p.x, p.y);
+        // printf("work at x=%i  y=%i\n", p.x, p.y);
         work(wat, data, p, on);
     }
 }
