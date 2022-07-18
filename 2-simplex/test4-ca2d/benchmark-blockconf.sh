@@ -21,13 +21,13 @@ NM=$((${#METHODS[@]}))
 TMEAN[0]=0
 TVAR[0]=0
 TSTDEV[0]=0
-TSTERR[0]=0
+TSTERR[0]=0s
 # show time
 echo "STARTING TIME"
 timedatectl
-for B in `seq ${STARTB} ${DB} ${ENDB}`;
+for BPOWER in `seq ${STARTB} ${DB} ${ENDB}`;
 do
-    B=$((2**${B}))
+    B=$((2**${BPOWER}))
     echo "Benchmarking for B=${B} METHODS=${NM}"
     echo "Compiling with BSIZE3D=$B"
     LB=$((${B} * ${B}))
@@ -35,16 +35,22 @@ do
     do
         echo "DEV=${DEV}  N=${N} B=${B} R=${R}"
         echo -n "${N}   ${B}    " >> data/${OUTFILE}_B${B}.dat
+        LAMBDAFP=LAMBDA_FP32
+        if [ ${N} -gt $(((2**(16 - (5 - ${BPOWER})) - 81*2**${BPOWER})-1)) ]
+        then
+            LAMBDAFP=LAMBDA_FP64
+        fi
+
         for q in `seq 1 ${NM}`;
         do
             M=0
             S=0
             if [ ${q} -eq 5 ]
             then
-                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} DP=YES HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
+                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} DP=YES HADO_FACTOR=${HFACTOR} ARCH=${ARCH} LAMBDAFP=${LAMBDAFP}`
                 echo ${COMPILE}
             else
-                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH}`
+                COMPILE=`make BSIZE1D=${LB} BSIZE2D=${B} HADO_FACTOR=${HFACTOR} ARCH=${ARCH} LAMBDAFP=${LAMBDAFP}`
                 echo ${COMPILE}
             fi
             # Chosen MAP

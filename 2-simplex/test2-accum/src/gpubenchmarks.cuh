@@ -75,8 +75,14 @@ double lambda(const unsigned long n, const unsigned int REPEATS) {
     auto map = [] __device__(const unsigned long n, const unsigned long msize, const unsigned int a1, const unsigned int a2, const unsigned int a3, const unsigned int subBlockGridSizex, const unsigned int subBlockGridSizey) {
         uint2 p;
         unsigned int bc = blockIdx.x + blockIdx.y * gridDim.x;
+#ifdef LAMBDA_FP32
         float arg = __fmaf_rn(2.0f, (float)bc, 0.25f);
         p.y = __fmaf_rn(arg, rsqrtf(arg), OFFSET); // + 0.001f;
+#elif LAMBDA_FP64
+        double arg = __fma_rn(2.0f, (double)bc, 0.25f);
+        p.y = __fma_rn(arg, rsqrt(arg), OFFSET); // + 0.001f;
+#endif
+
         p.x = (bc - (p.y * (p.y + 1) >> 1));
         // p.x = (bc - (p.y * (p.y + 1) >> 1));
         // printf("Lambda Antes p.x=%lu, p.y=%lu\n", p.x, p.y);

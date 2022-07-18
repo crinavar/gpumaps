@@ -141,7 +141,7 @@ __device__ inline int h(int k, int a, int b) {
     return (1 - (((k - a) >> 31) & 0x1)) * (1 - (((b - k) >> 31) & 0x1));
 }
 
-__device__ void work_cache(DTYPE* data, MTYPE* mat1, MTYPE* mat2, MTYPE* cache, uint3 lp, int2 p, int n) {
+__device__ void work_cache(DTYPE* data, MTYPE* mat1, MTYPE* mat2, MTYPE* cache, uint3 lp, int2 p, unsigned int n) {
     // neighborhood count
     int nc = cache[CINDEX(lp.x - 1, lp.y - 1)] + cache[CINDEX(lp.x, lp.y - 1)] + cache[CINDEX(lp.x + 1, lp.y - 1)] + cache[CINDEX(lp.x - 1, lp.y)] + cache[CINDEX(lp.x + 1, lp.y)] + cache[CINDEX(lp.x - 1, lp.y + 1)] + cache[CINDEX(lp.x, lp.y + 1)] + cache[CINDEX(lp.x + 1, lp.y + 1)];
     unsigned int c = cache[CINDEX(lp.x, lp.y)];
@@ -153,7 +153,7 @@ __device__ void work_cache(DTYPE* data, MTYPE* mat1, MTYPE* mat2, MTYPE* cache, 
     mat2[GINDEX(p.x, p.y, n)] = c * h(nc, EL, EU) + (1 - c) * h(nc, FL, FU);
 }
 
-__device__ void work_nocache(DTYPE* data, MTYPE* mat1, MTYPE* mat2, int2 p, int n) {
+__device__ void work_nocache(DTYPE* data, MTYPE* mat1, MTYPE* mat2, int2 p, unsigned int n) {
     int nc = mat1[GINDEX(p.x - 1, p.y - 1, n)] + mat1[GINDEX(p.x, p.y - 1, n)] + mat1[GINDEX(p.x + 1, p.y - 1, n)] + mat1[GINDEX(p.x - 1, p.y, n)] + mat1[GINDEX(p.x + 1, p.y, n)] + mat1[GINDEX(p.x - 1, p.y + 1, n)] + mat1[GINDEX(p.x, p.y + 1, n)] + mat1[GINDEX(p.x + 1, p.y + 1, n)];
     unsigned int c = mat1[GINDEX(p.x, p.y, n)];
     // transition function applied to state 'c' and written into mat2
@@ -184,10 +184,10 @@ template <typename Lambda>
 __global__ void kernel_test(const unsigned int n, const unsigned long msize, DTYPE* data, MTYPE* dmat1, MTYPE* dmat2, Lambda map, unsigned int aux1, unsigned int aux2, unsigned int aux3) {
     //__shared__ MTYPE cache[CSPACE];
     auto p = map(n, msize, aux1, aux2, aux3);
-    //load_cache(cache, dmat1, n, threadIdx, p);
+    // load_cache(cache, dmat1, n, threadIdx, p);
     if (p.x <= p.y && p.y < n) {
-        //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
-         work_nocache(data, dmat1, dmat2, p, n);
+        // work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+        work_nocache(data, dmat1, dmat2, p, n);
     }
 }
 //*/
@@ -208,19 +208,19 @@ __global__ void kernel_test_rectangle(const unsigned int n, const unsigned long 
     } else if (blockIdx.x < blockIdx.y) {
         // printf("THREAD IN BOT\n");
         //  lower triangular - standard cache
-        //load_cache_rectangle(cache, dmat1, n, threadIdx, p);
+        // load_cache_rectangle(cache, dmat1, n, threadIdx, p);
         if (p.x <= p.y && p.y < n) {
-            //work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
-             work_nocache(data, dmat1, dmat2, p, n);
+            // work_cache(data, dmat1, dmat2, cache, threadIdx, p, n);
+            work_nocache(data, dmat1, dmat2, p, n);
         }
     } else {
         // printf("THREAD IN UPPER\n");
         //  upper triangular - inverted cache
         uint3 invlp = (uint3) { BSIZE2D - 1 - threadIdx.x, BSIZE2D - 1 - threadIdx.y, 0 };
-        //load_cache_rectangle(cache, dmat1, n, invlp, p);
+        // load_cache_rectangle(cache, dmat1, n, invlp, p);
         if (p.x <= p.y && p.y < n) {
-            //work_cache(data, dmat1, dmat2, cache, invlp, p, n);
-             work_nocache(data, dmat1, dmat2, p, n);
+            // work_cache(data, dmat1, dmat2, cache, invlp, p, n);
+            work_nocache(data, dmat1, dmat2, p, n);
         }
     }
 }
@@ -321,7 +321,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 }
 
 // O(n^2) number of threads for work (on = original n)
-__global__ void kernelDP_work(int on, int n, MTYPE* dmat1, MTYPE* dmat2, int offX, int offY) {
+__global__ void kernelDP_work(unsigned int on, unsigned int n, MTYPE* dmat1, MTYPE* dmat2, unsigned int offX, unsigned int offY) {
     // Process data
     //__shared__ MTYPE cache[CSPACE];
     auto p = (int2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
@@ -332,17 +332,17 @@ __global__ void kernelDP_work(int on, int n, MTYPE* dmat1, MTYPE* dmat2, int off
     }
     p.x = p.x + offX;
     p.y = p.y + offY;
-    //load_cache(cache, dmat1, on, threadIdx, p);
-    // printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
+    // load_cache(cache, dmat1, on, threadIdx, p);
+    //  printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
     if (p.y >= p.x && p.y < on) {
         // printf("work at x=%i  y=%i\n", p.x, p.y);
-        //work_cache(NULL, dmat1, dmat2, cache, threadIdx, p, on);
+        // work_cache(NULL, dmat1, dmat2, cache, threadIdx, p, on);
         work_nocache(NULL, dmat1, dmat2, p, on);
     }
 }
 
 // 1 thread does exploration (on = original n)
-__global__ void kernelDP_exp(int on, int n, MTYPE* dmat1, MTYPE* dmat2, int x0, int y0, int MIN_SIZE) {
+__global__ void kernelDP_exp(int on, unsigned int n, MTYPE* dmat1, MTYPE* dmat2, unsigned int x0, unsigned int y0, unsigned int MIN_SIZE) {
 #ifdef DP
     // 1) stopping case
     if (n <= MIN_SIZE) {

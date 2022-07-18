@@ -655,8 +655,8 @@ void save_image(const char* filename, int* dwells, uint64_t w, uint64_t h,
 
 int verify_result(unsigned int n, const unsigned long msize, DTYPE* hdata, DTYPE* ddata, MTYPE* hmat, MTYPE* dmat) {
 
-    cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
-    save_image("CA.png", hmat, n + 2, n + 2, 1, 0);
+    // cudaMemcpy(hmat, dmat, sizeof(MTYPE) * msize, cudaMemcpyDeviceToHost);
+    // save_image("CA.png", hmat, n + 2, n + 2, 1, 0);
     return 1;
 }
 #endif
