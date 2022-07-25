@@ -352,6 +352,25 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n,
     printf("done\n");
     fflush(stdout);
     print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG  dmat2 -> dmat1");
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+    for (int k = 0; k < REPEATS; k++) {
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
+        kernel_test<<<grid, block>>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
+        kernel_test<<<grid, block>>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+    }
+
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG  dmat2 -> dmat1");
     printf("Benchmarking (%i REPEATS).......", REPEATS);
     fflush(stdout);
 #endif
@@ -410,6 +429,25 @@ double benchmark_map_rectangle(const int REPEATS, dim3 block, dim3 grid,
 #ifdef DEBUG
     printf("block= %i x %i x %i    grid = %i x %i x %i\n", block.x, block.y, block.z, grid.x, grid.y, grid.z);
 #endif
+
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+    for (int k = 0; k < REPEATS; k++) {
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
+        kernel_test_rectangle<<<grid, block>>>(n, msize, ddata, dmat1, dmat2, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
+        kernel_test_rectangle<<<grid, block>>>(n, msize, ddata, dmat2, dmat1, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+    }
 
 #ifdef DEBUG
     printf("done\n");
@@ -478,9 +516,31 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
     printf("HADO_TOL = %i\n", HADO_TOL);
     print_grids_offsets(numrec, grids, block, offsets);
 #endif
-    // printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
-    // printf("numrecs = %i\n", numrec);
-
+// printf("n = %i    lpow = %i, hpow = %i\n", n, lpow, hpow);
+// printf("numrecs = %i\n", numrec);
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    print_dmat(PRINTLIMIT, n, msize, dmat1, "PONG");
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
+        for (int i = 0; i < numrec; ++i) {
+            // for(int i=numrec-1; i>=0; --i){
+            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, msize, ddata, dmat1, dmat2, map, auxs1[i], auxs2[i], offsets[i]);
+        }
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
+        for (int i = 0; i < numrec; ++i) {
+            // for(int i=numrec-1; i>=0; --i){
+            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, msize, ddata, dmat2, dmat1, map, auxs1[i], auxs2[i], offsets[i]);
+        }
+        cudaDeviceSynchronize();
+    }
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -554,6 +614,29 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
         minSize = 1 << expVal;
     } else {
         minSize = OPT_MINSIZE;
+    }
+
+#ifdef DEBUG
+    printf("DP_DEPTH = %i\n", DP_DEPTH);
+    printf("exponent = %i\n", expVal);
+    printf("minSize = %i\n", minSize);
+    fflush(stdout);
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat1, dmat1);
+        cudaDeviceSynchronize();
+        // kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat1, dmat2, map, 0, blockedN - blockedNHalf, 1);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat1, dmat2, 0, 0, minSize);
+
+        kernel_update_ghosts<<<(n + BSIZE1D - 1) / BSIZE1D, BSIZE1D>>>(n, msize, dmat2, dmat2);
+        cudaDeviceSynchronize();
+        // kernel_test_DP<<<grid, block>>>(n, blockedN, ddata, dmat2, dmat1, map, 0, blockedN - blockedNHalf, 1);
+        kernelDP_exp<<<1, 1>>>(n, n, dmat2, dmat1, 0, 0, minSize);
+
+        cudaDeviceSynchronize();
     }
 #ifdef DEBUG
     printf("DP_DEPTH = %i\n", DP_DEPTH);

@@ -340,6 +340,17 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     cudaEvent_t start, stop;
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
+
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+    for (int k = 0; k < REPEATS; k++) {
+        kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+    }
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
@@ -493,6 +504,19 @@ double benchmark_map_hadouken(const int REPEATS, dim3 block, unsigned int n, uns
 #ifdef DEBUG
     printf("done\n");
     fflush(stdout);
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        for (int i = 0; i < numrec; ++i) {
+            kernel_test<<<grids[i], block, 0, streams[i]>>>(n, 1, msize, ddata, dmat, map, auxs1[i], auxs2[i], offsets[i]);
+        }
+        cudaDeviceSynchronize();
+    }
+#ifdef DEBUG
+    printf("done\n");
+    fflush(stdout);
     printf("Benchmarking (%i REPEATS).......", REPEATS);
     fflush(stdout);
 #endif
@@ -622,6 +646,21 @@ double benchmark_map_DP(const int REPEATS, dim3 block, unsigned int n, unsigned 
     } else {
         minSize = OPT_MINSIZE;
     }
+
+#ifdef DEBUG
+    printf("DP_DEPTH = %i\n", DP_DEPTH);
+    printf("exponent = %i\n", expVal);
+    printf("minSize = %i\n", minSize);
+    fflush(stdout);
+    printf("WARMUP (%i REPEATS).......", REPEATS);
+    fflush(stdout);
+#endif
+#pragma loop unroll
+    for (int k = 0; k < REPEATS; ++k) {
+        kernelDP_exp<<<1, 1>>>(n, n, dmat, 0, 0, minSize);
+        cudaDeviceSynchronize();
+    }
+
 #ifdef DEBUG
     printf("DP_DEPTH = %i\n", DP_DEPTH);
     printf("exponent = %i\n", expVal);
