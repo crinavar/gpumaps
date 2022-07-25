@@ -308,6 +308,10 @@ double benchmark_map(const int REPEATS, dim3 block, dim3 grid, unsigned int n, u
     fflush(stdout);
 #endif
     float time = 0.0;
+    for (int k = 0; k < REPEATS; k++) {
+        kernel_test<<<grid, block>>>(n, 1, msize, ddata, dmat, map, aux1, aux2, aux3);
+        cudaDeviceSynchronize();
+    }
     // measure running time
     cudaEventRecord(start, 0);
 #ifdef MEASURE_POWER
