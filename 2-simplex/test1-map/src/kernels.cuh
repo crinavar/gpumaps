@@ -34,7 +34,7 @@ template <typename Lambda>
 __global__ void kernel_test(const unsigned int n, const int a, const unsigned int msize,
     DTYPE* data, MTYPE* dmat, Lambda map, const unsigned int aux1,
     const unsigned int aux2, const unsigned int aux3) {
-    auto p = map(n, msize, aux1, aux2, aux3);
+    volatile auto p = map(n, msize, aux1, aux2, aux3);
     if (p.y >= p.x && p.y < n) {
         work(data, dmat, p, n, a);
     }
@@ -65,7 +65,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
         }
     }
     // Process data
-    auto p = (uint2) { blockIdx.x + x0, blockIdx.y + y0 };
+    volatile auto p = (uint2) { blockIdx.x + x0, blockIdx.y + y0 };
     if (p.x > p.y) {
         return;
     }
@@ -81,7 +81,7 @@ __global__ void kernel_test_DP(const unsigned int n, const unsigned int levelBlo
 // O(n^2) number of threads for work (on = original n)
 __global__ void kernelDP_work(int on, unsigned int n, MTYPE* data, unsigned int offX, unsigned int offY) {
     // Process data
-    auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
+    volatile auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     // printf("thread at local x=%i  y=%i\n", p.x, p.y);
     if (p.x >= n || p.y >= n) {
         // printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
