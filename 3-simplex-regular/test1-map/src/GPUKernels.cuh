@@ -209,9 +209,9 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
 
-			cudaStream_t s1, s2;
-			cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
-			cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+            cudaStream_t s1, s2;
+            cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+            cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s1>>>(data, n, depth + 1, halfLevelN, originX + levelN, originY);
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s2>>>(data, n, depth + 1, halfLevelN, originX, originY + levelN);
 
@@ -219,9 +219,9 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
 
-			cudaStream_t s1, s2;
-			cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
-			cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+            cudaStream_t s1, s2;
+            cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+            cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
             kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s1>>>(data, n, originX + levelN, originY);
             kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s2>>>(data, n, originX, originY + levelN);
         }
@@ -252,7 +252,53 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
         }
     }
 
-
     return;
+}
+
+__global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* data, unsigned int offX, unsigned int offY) {
+    // Process data
+    auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
+    // printf("thread at local x=%i  y=%i\n", p.x, p.y);
+    if (p.x >= levelN || p.y >= levelN) {
+        // printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
+        return;
+    }
+    p.x = p.x + offX;
+    p.y = p.y + offY;
+    // printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
+    if (p.y >= p.x && p.y < n) {
+        // printf("work at x=%i  y=%i\n", p.x, p.y);
+        work(NULL, data, p, n, 1);
+    }
+}
+
+__global__ void kernelDP_exp(MTYPE* data, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t x0, uint32_t y0) {
+//__global__ void kernelDP_exp(unsigned int on, unsigned int n, MTYPE* data, unsigned int x0, unsigned int y0, unsigned int MIN_SIZE) {
+#ifdef DP
+    // 1) stopping case
+    if (levelN <= MIN_SIZE) {
+        dim3 bleaf(BSIZE2D, BSIZE2D), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, 1);
+        // printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+        kernelDP_work<<<gleaf, bleaf>>>(on, levelN, data, x0, y0);
+        return;
+    }
+    // 2) explore up and right asynchronously
+    cudaStream_t s1, s2, s3;
+    cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
+    int subn = (levelN >> 1) + (levelN & 1);
+    int n2 = levelN >> 1;
+    // printf("subn %i\nn2 %i\n", subn, n2);
+    //  up
+    kernelDP_exp<<<1, 1, 0, s1>>>(on, n2, data, x0, y0, MIN_SIZE);
+    // bottom right
+    kernelDP_exp<<<1, 1, 0, s2>>>(on, n2, data, x0 + subn, y0 + subn, MIN_SIZE);
+    // 3) work in the bot middle
+    dim3 bnode(BSIZE2D, BSIZE2D);
+    dim3 gnode = dim3((subn + bnode.x - 1) / bnode.x, (subn + bnode.y - 1) / bnode.y, 1);
+    // printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, subn, subn);
+    kernelDP_work<<<gnode, bnode, 0, s3>>>(on, subn, data, x0, y0 + n2);
+#endif
 }
 #endif

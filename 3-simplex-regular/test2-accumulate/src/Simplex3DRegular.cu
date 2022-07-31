@@ -16,7 +16,7 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
     this->nElementsSimplex = n * (n - 1) * (n + 1) / 6;
     this->mapType = MapType::NOT_IMPLEMENTED;
 
-    if (maptype < 3) {
+    if (maptype < 4) {
         switch (maptype) {
         case 0:
             this->mapType = MapType::BOUNDING_BOX;
@@ -30,6 +30,13 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
             break;
 #endif
             this->mapType = MapType::DYNAMIC_PARALLELISM;
+            break;
+        case 3:
+#ifndef DP
+            printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
+            break;
+#endif
+            this->mapType = MapType::DYNAMIC_PARALLELISM2;
             break;
         }
     }
@@ -116,6 +123,10 @@ bool Simplex3DRegular::init() {
     case MapType::DYNAMIC_PARALLELISM:
         this->GPUBlock = dim3(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
         this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (n / 2 + GPUBlock.z - 1) / GPUBlock.z);
+        break;
+    case MapType::DYNAMIC_PARALLELISM2:
+        this->GPUBlock = dim3(1, 1, 1);
+        this->GPUGrid = dim3(1, 1, 1);
         break;
     }
 
@@ -213,6 +224,21 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
             kernelDynamicParallelism<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, n / 2, 0, 0);
+#endif
+            gpuErrchk(cudaDeviceSynchronize());
+        }
+        cudaEventRecord(stop);
+
+        break;
+
+    case MapType::DYNAMIC_PARALLELISM2:
+        cudaEventRecord(start);
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("DP2-") + std::to_string(this->deviceId));
+#endif
+        for (uint32_t i = 0; i < nTimes; ++i) {
+#ifdef DP
+            kernelDP_exp<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, this->n, 0, 0, 0);
 #endif
             gpuErrchk(cudaDeviceSynchronize());
         }
