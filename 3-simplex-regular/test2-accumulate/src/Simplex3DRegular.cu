@@ -16,29 +16,34 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
     this->nElementsSimplex = n * (n - 1) * (n + 1) / 6;
     this->mapType = MapType::NOT_IMPLEMENTED;
 
-    if (maptype < 4) {
-        switch (maptype) {
-        case 0:
-            this->mapType = MapType::BOUNDING_BOX;
-            break;
-        case 1:
-            this->mapType = MapType::HADOUKEN;
-            break;
-        case 2:
+    switch (maptype) {
+    case 0:
+        this->mapType = MapType::BOUNDING_BOX;
+        break;
+    case 1:
+        this->mapType = MapType::HADOUKEN;
+        break;
+    case 2:
 #ifndef DP
-            printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
-            break;
+        printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
+        break;
 #endif
-            this->mapType = MapType::DYNAMIC_PARALLELISM;
-            break;
-        case 3:
+        this->mapType = MapType::DYNAMIC_PARALLELISM;
+        break;
+    case 3:
 #ifndef DP
-            printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
-            break;
+        printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
+        break;
 #endif
-            this->mapType = MapType::DYNAMIC_PARALLELISM2;
-            break;
-        }
+        this->mapType = MapType::DYNAMIC_PARALLELISM2;
+        break;
+    case 4:
+#ifndef DP
+        printf("To enable the Dynamic Parallelism approach, please compile with `make DP=YES`.\n");
+        break;
+#endif
+        this->mapType = MapType::DYNAMIC_PARALLELISM3;
+        break;
     }
 
     this->hasBeenAllocated = false;
@@ -125,6 +130,10 @@ bool Simplex3DRegular::init() {
         this->GPUGrid = dim3((n / 2 + GPUBlock.x - 1) / GPUBlock.x, (n / 2 + GPUBlock.y - 1) / GPUBlock.y, (n / 2 + GPUBlock.z - 1) / GPUBlock.z);
         break;
     case MapType::DYNAMIC_PARALLELISM2:
+        this->GPUBlock = dim3(1, 1, 1);
+        this->GPUGrid = dim3(1, 1, 1);
+        break;
+    case MapType::DYNAMIC_PARALLELISM3:
         this->GPUBlock = dim3(1, 1, 1);
         this->GPUGrid = dim3(1, 1, 1);
         break;
@@ -239,6 +248,20 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
             kernelDP_exp<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, this->n, 0, 0, 0);
+#endif
+            gpuErrchk(cudaDeviceSynchronize());
+        }
+        cudaEventRecord(stop);
+
+        break;
+    case MapType::DYNAMIC_PARALLELISM3:
+        cudaEventRecord(start);
+#ifdef MEASURE_POWER
+        GPUPowerBegin(this->n, 100, 0, std::string("DP3-") + std::to_string(this->deviceId));
+#endif
+        for (uint32_t i = 0; i < nTimes; ++i) {
+#ifdef DP
+            kernelDynamicParallelismHYBRID<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, this->n, 0, 0, 0);
 #endif
             gpuErrchk(cudaDeviceSynchronize());
         }

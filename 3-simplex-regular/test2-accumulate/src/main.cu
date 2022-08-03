@@ -14,7 +14,7 @@ const uint32_t INNER_REPEATS = 1;
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
     if (argc != 5) {
-        printf("run as ./prog <deviceId> 2^<N> <repeats> <mapType>\nmapType:\n\t0 = bounding box\n\t1 = Hadouken\n\t2 = Dynamic Parallelism\n");
+        printf("run as ./prog <deviceId> 2^<N> <repeats> <mapType>\nmapType:\n\t0 = bounding box\n\t1 = Hadouken\n\t2 = Dynamic Parallelism\n\t3 = Traditional Dynamic Parallelism\n");
         exit(1);
     }
 

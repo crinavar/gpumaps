@@ -257,20 +257,6 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
 __global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* data, unsigned int offX, unsigned int offY, uint32_t offZ) {
     // Process data
     auto p = (uint3) { offX + blockIdx.x * blockDim.x + threadIdx.x, offY + blockIdx.y * blockDim.y + threadIdx.y, offZ + blockIdx.z * blockDim.z + threadIdx.z };
-
-    // printf("thread at local x=%i  y=%i\n", p.x, p.y);
-    // if (p.x >= levelN || p.y >= levelN) {
-    //    // printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
-    //    return;
-    //}
-    // p.x = p.x + offX;
-    // p.y = p.y + offY;
-    //// printf("checking thread at global x=%i  y=%i\n", p.x, p.y);
-    // if (p.y >= p.x && p.y < n) {
-    //     // printf("work at x=%i  y=%i\n", p.x, p.y);
-    //     work(NULL, data, p, n, 1);
-    // }
-
     if (isInSimplex(p, n)) {
         size_t index = p.z * n * n + p.y * n + p.x;
         if (index < n * n * n) {
@@ -312,6 +298,73 @@ __global__ void kernelDP_exp(MTYPE* data, const uint32_t n, const uint32_t depth
     // printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, n2, n2);
     kernelDP_work<<<gnode, bnode, 0, s4>>>(n, n2, data, x0, y0, z0);
 #endif
+}
+
+//
+__global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t n, const uint32_t originX, const uint32_t originY) {
+    // Map elements directly to data space, both origins coalign.
+    auto threadCoord = boundingBoxMap();
+    auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    if (isInSimplex(dataCoord, n)) {
+        // In the simplex part of the cube
+        // Performing the hinged map to data space
+        size_t index = dataCoord.z * n * n + dataCoord.y * n + dataCoord.x;
+
+        if (index < n * n * n) {
+            work(data, index, threadCoord);
+        }
+    } else if (n > BSIZE3DX) {
+        // Out of the simplex region of the grid
+        // Directly map threads to data space
+        // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
+        uint32_t bufferX = threadCoord.x;
+        threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
+        threadCoord.y = originY + (levelNminusOne)-bufferX;
+        threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
+        size_t index = threadCoord.z * n * n + threadCoord.y * n + threadCoord.x;
+        if (index < n * n * n && index < 0) {
+            work(data, index, threadCoord);
+        }
+    }
+    return;
+}
+
+// Origin is the location of this orthotope origin inside the cube
+// Depth is the current level being mapped
+// levelN is the size of the orthotope at level depth
+// This kernel assumes that the grid axes direction coalign with data space
+__global__ void kernelDynamicParallelismHYBRID(MTYPE* data, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY) {
+
+    const uint32_t halfLevelN = levelN >> 1;
+    const uint32_t levelNminusOne = levelN - 1;
+    // Launch child kernels
+    // 1) stopping case
+    if (levelN <= MIN_SIZE) {
+        dim3 bleaf(BSIZE3DX, BSIZE3DY, BSIZE3DZ), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, (levelN + bleaf.z - 1) / bleaf.z);
+        // printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+        kernelDynamicParallelismHingedHYRBID<<<gleaf, bleaf>>>(n, levelN, data, x0, y0, z0);
+        return;
+    }
+    // 2) explore up and right asynchronously
+    cudaStream_t s1, s2, s3, s4;
+    cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
+    // int subn = (levelN >> 1) + (levelN & 1);
+    int n2 = levelN >> 1;
+    // printf("subn %i\nn2 %i\n", subn, n2);
+    //  up
+    kernelDynamicParallelismHYBRID<<<1, 1, 0, s1>>>(data, n, depth + 1, n2, x0, y0 + n2, z0);
+    // bottom right
+    kernelDynamicParallelismHYBRID<<<1, 1, 0, s2>>>(data, n, depth + 1, n2, x0 + n2, y0, z0);
+
+    // 3) work in the bot middle
+    dim3 bnode(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+    dim3 gnode = dim3((n2 + bnode.x - 1) / bnode.x, (n2 + bnode.y - 1) / bnode.y, (n2 + bnode.z - 1) / bnode.z);
+    // printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, n2, n2);
+    kernelDynamicParallelismHingedHYRBID<<<gnode, bnode, 0, s3>>>(n, n2, data, x0, y0, z0);
+
+    return;
 }
 
 #endif
