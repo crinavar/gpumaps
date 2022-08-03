@@ -301,9 +301,9 @@ __global__ void kernelDP_exp(MTYPE* data, const uint32_t n, const uint32_t depth
 }
 
 //
-__global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t n, const uint32_t originX, const uint32_t originY) {
+__global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t n, const uint32_t levelN, const uint32_t originX, const uint32_t originY) {
     // Map elements directly to data space, both origins coalign.
-    const uint32_t levelNminusOne = n - 1;
+    const uint32_t levelNminusOne = levelN - 1;
     auto threadCoord = boundingBoxMap();
     auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
     if (isInSimplex(dataCoord, n)) {
@@ -321,7 +321,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t
         uint32_t bufferX = threadCoord.x;
         threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
         threadCoord.y = originY + (levelNminusOne)-bufferX;
-        threadCoord.z = (2 * n) - 1 - threadCoord.z;
+        threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
         size_t index = threadCoord.z * n * n + threadCoord.y * n + threadCoord.x;
         if (index < n * n * n && index < 0) {
             work(data, index, threadCoord);
@@ -343,7 +343,7 @@ __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, const uint32_t n, co
     if (levelN <= MIN_SIZE) {
         dim3 bleaf(BSIZE3DX, BSIZE3DY, BSIZE3DZ), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, (levelN + bleaf.z - 1) / bleaf.z);
         // printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
-        kernelDynamicParallelismHingedHYRBID<<<gleaf, bleaf>>>(n, levelN, data, x0, y0);
+        kernelDynamicParallelismHingedHYRBID<<<gleaf, bleaf>>>(data, n, levelN, x0, y0);
         return;
     }
     // 2) explore up and right asynchronously
