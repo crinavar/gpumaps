@@ -261,7 +261,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
 #endif
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
-            kernelDynamicParallelismHYBRID<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, this->n, 0, 0, 0);
+            kernelDynamicParallelismHYBRID<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->n, 1, this->n, 0, 0);
 #endif
             gpuErrchk(cudaDeviceSynchronize());
         }
