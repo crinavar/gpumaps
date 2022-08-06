@@ -15,6 +15,7 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
     this->nElementsCube = n * n * n;
     this->nElementsSimplex = n * (n - 1) * (n + 1) / 6;
     this->mapType = MapType::NOT_IMPLEMENTED;
+    this->mapType = MapType::NOT_IMPLEMENTED;
 
     switch (maptype) {
     case 0:
@@ -45,7 +46,6 @@ Simplex3DRegular::Simplex3DRegular(uint32_t deviceId, uint32_t powerOfTwoSize, u
         this->mapType = MapType::DYNAMIC_PARALLELISM3;
         break;
     }
-
     this->hasBeenAllocated = false;
 }
 

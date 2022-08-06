@@ -204,7 +204,7 @@ __global__ void kernelHadoukenStrip(MTYPE* data, MTYPE* dataPong, const uint32_t
 }
 
 #ifdef DP
-//
+
 __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
     auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 
@@ -221,32 +221,30 @@ __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong,
 // Depth is the current level being mapped
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
-#define MAX_DEPTH 1
 __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY, uint32_t nWithHalo) {
 
     const uint32_t halfLevelN = levelN >> 1;
     const uint32_t levelNminusOne = levelN - 1;
-
     // Launch child kernels
     if (threadIdx.x + threadIdx.y + threadIdx.z + blockIdx.x + blockIdx.y + blockIdx.z == 0) {
 
-        if (levelN > BSIZE3DX && depth+1<MAX_DEPTH) {
+        if (levelN > MIN_SIZE) {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX, halfLevelN / BSIZE3DX);
+
             cudaStream_t s1, s2;
             cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
             cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
-
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s1>>>(data, dataPong, n, depth + 1, halfLevelN, originX + levelN, originY, nWithHalo);
             kernelDynamicParallelism<<<gridSize, blockSize, 0, s2>>>(data, dataPong, n, depth + 1, halfLevelN, originX, originY + levelN, nWithHalo);
 
-        } else if (levelN == BSIZE3DX || depth+1==MAX_DEPTH) {
+        } else {
             dim3 blockSize(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
             dim3 gridSize(gridDim.x, gridDim.y, gridDim.z);
+
             cudaStream_t s1, s2;
             cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
             cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
-
             kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s1>>>(data, dataPong, n, originX + levelN, originY, nWithHalo);
             kernelDynamicParallelismBruteForce<<<gridSize, blockSize, 0, s2>>>(data, dataPong, n, originX, originY + levelN, nWithHalo);
         }
@@ -261,7 +259,7 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
         if (index < nWithHalo * nWithHalo * nWithHalo) {
             work(data, dataPong, index, dataCoord, nWithHalo);
         }
-    } else if (n > BSIZE3DX) {
+    } else {
         // Out of the simplex region of the grid
         // Directly map threads to data space
         // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
@@ -277,4 +275,119 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
 
     return;
 }
+
+__global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* data, MTYPE* dataPong, unsigned int offX, unsigned int offY, uint32_t offZ, uint32_t nWithHalo) {
+    // Process data
+    auto p = (uint3) { offX + blockIdx.x * blockDim.x + threadIdx.x, offY + blockIdx.y * blockDim.y + threadIdx.y, offZ + blockIdx.z * blockDim.z + threadIdx.z };
+    if (isInSimplex(p, n)) {
+        size_t index = (p.z + 1) * nWithHalo * nWithHalo + (p.y + 1) * nWithHalo + (p.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, p, nWithHalo);
+        }
+    }
+    return;
+}
+
+__global__ void kernelDP_exp(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t x0, uint32_t y0, uint32_t z0, uint32_t nWithHalo) {
+//__global__ void kernelDP_exp(unsigned int on, unsigned int n, MTYPE* data, unsigned int x0, unsigned int y0, unsigned int MIN_SIZE) {
+#ifdef DP
+    // 1) stopping case
+    if (levelN <= MIN_SIZE) {
+        dim3 bleaf(BSIZE3DX, BSIZE3DY, BSIZE3DZ), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, (levelN + bleaf.z - 1) / bleaf.z);
+        // printf("leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", x0, y0, n, n, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+        kernelDP_work<<<gleaf, bleaf>>>(n, levelN, data, dataPong, x0, y0, z0, nWithHalo);
+        return;
+    }
+    // 2) explore up and right asynchronously
+    cudaStream_t s1, s2, s3, s4;
+    cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s4, cudaStreamNonBlocking);
+    // int subn = (levelN >> 1) + (levelN & 1);
+    int n2 = levelN >> 1;
+    // printf("subn %i\nn2 %i\n", subn, n2);
+    //  up
+    kernelDP_exp<<<1, 1, 0, s1>>>(data, dataPong, n, depth + 1, n2, x0, y0, z0 + n2, nWithHalo);
+    // bottom right
+    kernelDP_exp<<<1, 1, 0, s2>>>(data, dataPong, n, depth + 1, n2, x0 + n2, y0, z0, nWithHalo);
+    // bottom left
+    kernelDP_exp<<<1, 1, 0, s3>>>(data, dataPong, n, depth + 1, n2, x0, y0 + n2, z0, nWithHalo);
+
+    // 3) work in the bot middle
+    dim3 bnode(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+    dim3 gnode = dim3((n2 + bnode.x - 1) / bnode.x, (n2 + bnode.y - 1) / bnode.y, (n2 + bnode.z - 1) / bnode.z);
+    // printf("node kernel at x=%i  y=%i   size %i x %i\n", x0, y0+n2, n2, n2);
+    kernelDP_work<<<gnode, bnode, 0, s4>>>(n, n2, data, dataPong, x0, y0, z0, nWithHalo);
+#endif
+}
+
+//
+
+//
+__global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t levelN, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
+
+    // Map elements directly to data space, both origins coalign.
+    const uint32_t levelNminusOne = levelN - 1;
+    auto threadCoord = boundingBoxMap();
+    auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    if (isInSimplex(dataCoord, n)) {
+        // Out of the simplex region of the grid
+        // Directly map threads to data space
+        size_t index = (dataCoord.z + 1) * nWithHalo * nWithHalo + (dataCoord.y + 1) * nWithHalo + (dataCoord.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, dataCoord, nWithHalo);
+        }
+    } else {
+        // Out of the simplex region of the grid
+        // Directly map threads to data space
+        // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
+        uint32_t bufferX = threadCoord.x;
+        threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
+        threadCoord.y = originY + (levelNminusOne)-bufferX;
+        threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
+        size_t index = (threadCoord.z + 1) * nWithHalo * nWithHalo + (threadCoord.y + 1) * nWithHalo + (threadCoord.x + 1);
+        if (index < nWithHalo * nWithHalo * nWithHalo) {
+            work(data, dataPong, index, threadCoord, nWithHalo);
+        }
+    }
+    return;
+}
+
+// Origin is the location of this orthotope origin inside the cube
+// Depth is the current level being mapped
+// levelN is the size of the orthotope at level depth
+// This kernel assumes that the grid axes direction coalign with data space
+__global__ void kernelDynamicParallelismHYBRID(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t x0, uint32_t y0, uint32_t nWithHalo) {
+
+    // Launch child kernels
+    // 1) stopping case
+    int n2 = levelN >> 1;
+    if (n2 <= MIN_SIZE) {
+        dim3 bleaf(BSIZE3DX, BSIZE3DY, BSIZE3DZ), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, (levelN + bleaf.z - 1) / bleaf.z);
+        // printf("[%i] leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", depth, x0, y0, levelN, levelN, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+        kernelDynamicParallelismHingedHYRBID<<<gleaf, bleaf>>>(data, dataPong, n, levelN, x0, y0, nWithHalo);
+
+        return;
+    }
+    // 2) explore up and right asynchronously
+    cudaStream_t s1, s2, s3;
+    cudaStreamCreateWithFlags(&s1, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s2, cudaStreamNonBlocking);
+    cudaStreamCreateWithFlags(&s3, cudaStreamNonBlocking);
+    // int subn = (levelN >> 1) + (levelN & 1);
+    //  up
+    kernelDynamicParallelismHYBRID<<<1, 1, 0, s1>>>(data, dataPong, n, depth + 1, n2, x0, y0 + n2, nWithHalo);
+    // bottom right
+    kernelDynamicParallelismHYBRID<<<1, 1, 0, s2>>>(data, dataPong, n, depth + 1, n2, x0 + n2, y0, nWithHalo);
+
+    // 3) work in the bot middl
+    dim3 bnode(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
+    dim3 gnode = dim3((n2 + bnode.x - 1) / bnode.x, (n2 + bnode.y - 1) / bnode.y, (n2 + bnode.z - 1) / bnode.z);
+    // printf("[%i] node kernel at x=%i  y=%i   size %i x %i\n", depth, x0, y0+n2, n2, n2);
+    kernelDynamicParallelismHingedHYRBID<<<gnode, bnode, 0, s3>>>(data, dataPong, n, n2, x0, y0, nWithHalo);
+
+    return;
+}
+
 #endif
