@@ -132,7 +132,7 @@ uint3 inline __device__ hadoukenMap2d(uint3 coord, const uint32_t n) {
 __global__ void kernelBoundingBox(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
 
     if (isInSimplex(blockIdx, blockedN + 1)) {
-        auto p = boundingBoxMap();
+        volatile auto p = boundingBoxMap();
         if (isInSimplex(p, n)) {
             size_t index = p.z * n * n + p.y * n + p.x;
             if (index < n * n * n) {
@@ -144,7 +144,7 @@ __global__ void kernelBoundingBox(MTYPE* data, const uint32_t n, const uint32_t 
 }
 
 __global__ void kernelHadouken(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
-    auto p = hadoukenMap3d(blockIdx, blockedN);
+    volatile auto p = hadoukenMap3d(blockIdx, blockedN);
     if (p.z == 0xffffffff) {
         return;
     }
@@ -163,7 +163,7 @@ __global__ void kernelHadouken(MTYPE* data, const uint32_t n, const uint32_t blo
 // It also asumes the origin at the top right corner, same as the 3d version
 __global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_t blockedN) {
     // Get the mapped coordinate of the region
-    auto p = hadoukenMap2d(blockIdx, blockedN);
+    volatile auto p = hadoukenMap2d(blockIdx, blockedN);
 
     // p = (uint3) { p.x, 0, ((blockedN - 1) - p.y) };
     // Then transform it toan xz version with the origin at the corner.
@@ -182,7 +182,7 @@ __global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_
 #ifdef DP
 //
 __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, const uint32_t n, const uint32_t originX, const uint32_t originY) {
-    auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
+    volatile auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 
     if (isInSimplex(p, n)) {
         size_t index = p.z * n * n + p.y * n + p.x;
@@ -228,8 +228,8 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
     }
 
     // Map elements directly to data space, both origins coalign.
-    auto threadCoord = boundingBoxMap();
-    auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    volatile auto threadCoord = boundingBoxMap();
+    volatile auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
     if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
@@ -257,7 +257,7 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
 
 __global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* data, unsigned int offX, unsigned int offY) {
     // Process data
-    auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
+    volatile auto p = (uint2) { blockIdx.x * blockDim.x + threadIdx.x, blockIdx.y * blockDim.y + threadIdx.y };
     // printf("thread at local x=%i  y=%i\n", p.x, p.y);
     if (p.x >= levelN || p.y >= levelN) {
         // printf("discarding thread at local x=%i  y=%i\n", p.x, p.y);
