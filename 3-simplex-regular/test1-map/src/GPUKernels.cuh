@@ -148,7 +148,9 @@ __global__ void kernelHadouken(MTYPE* data, const uint32_t n, const uint32_t blo
     if (p.z == 0xffffffff) {
         return;
     }
-    p = addThreadIdxOffset(p);
+    p.x = p.x * blockDim.x + threadIdx.x;
+    p.y = p.y * blockDim.y + threadIdx.y;
+    p.z = p.z * blockDim.z + threadIdx.z;
     if (isInSimplex(p, n)) {
         size_t index = p.z * n * n + p.y * n + p.x;
         if (index < n * n * n) {
@@ -169,7 +171,9 @@ __global__ void kernelHadoukenStrip(MTYPE* data, const uint32_t n, const uint32_
     // Then transform it toan xz version with the origin at the corner.
     p.z = ((blockedN - 1) - p.y);
     p.y = 0;
-    p = addThreadIdxOffset(p);
+    p.x = p.x * blockDim.x + threadIdx.x;
+    p.y = p.y * blockDim.y + threadIdx.y;
+    p.z = p.z * blockDim.z + threadIdx.z;
     if (isInSimplex(p, n)) {
         size_t index = p.z * n * n + p.y * n + p.x;
         if (index < n * n * n) {

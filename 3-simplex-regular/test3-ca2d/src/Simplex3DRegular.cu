@@ -289,6 +289,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
 #ifdef DP
             kernelDP_exp<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, 1, this->n, 0, 0, 0, n + 2);
 #endif
+            std::swap(devData, devDataPong);
             gpuErrchk(cudaDeviceSynchronize());
         }
         cudaEventRecord(stop);
@@ -302,6 +303,7 @@ float Simplex3DRegular::doBenchmarkAction(uint32_t nTimes) {
         for (uint32_t i = 0; i < nTimes; ++i) {
 #ifdef DP
             kernelDynamicParallelismHYBRID<<<this->GPUGrid, this->GPUBlock>>>(this->devData, this->devDataPong, this->n, 1, this->n, 0, 0, n + 2);
+            std::swap(devData, devDataPong);
 #endif
             gpuErrchk(cudaDeviceSynchronize());
         }

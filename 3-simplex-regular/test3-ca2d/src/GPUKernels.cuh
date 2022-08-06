@@ -203,9 +203,9 @@ __global__ void kernelHadoukenStrip(MTYPE* data, MTYPE* dataPong, const uint32_t
     return;
 }
 
-#ifdef DP
 
 __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
+#ifdef DP
     auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
 
     if (isInSimplex(p, n)) {
@@ -214,6 +214,7 @@ __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong,
             work(data, dataPong, index, p, nWithHalo);
         }
     }
+#endif
     return;
 }
 
@@ -222,6 +223,7 @@ __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong,
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
 __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t originX, uint32_t originY, uint32_t nWithHalo) {
+#ifdef DP
 
     const uint32_t halfLevelN = levelN >> 1;
     const uint32_t levelNminusOne = levelN - 1;
@@ -273,10 +275,12 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
         }
     }
 
+#endif
     return;
 }
 
 __global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* data, MTYPE* dataPong, unsigned int offX, unsigned int offY, uint32_t offZ, uint32_t nWithHalo) {
+#ifdef DP
     // Process data
     auto p = (uint3) { offX + blockIdx.x * blockDim.x + threadIdx.x, offY + blockIdx.y * blockDim.y + threadIdx.y, offZ + blockIdx.z * blockDim.z + threadIdx.z };
     if (isInSimplex(p, n)) {
@@ -285,6 +289,7 @@ __global__ void kernelDP_work(const uint32_t n, const uint32_t levelN, MTYPE* da
             work(data, dataPong, index, p, nWithHalo);
         }
     }
+#endif
     return;
 }
 
@@ -327,6 +332,7 @@ __global__ void kernelDP_exp(MTYPE* data, MTYPE* dataPong, const uint32_t n, con
 //
 __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t levelN, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
 
+#ifdef DP
     // Map elements directly to data space, both origins coalign.
     const uint32_t levelNminusOne = levelN - 1;
     auto threadCoord = boundingBoxMap();
@@ -351,6 +357,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPon
             work(data, dataPong, index, threadCoord, nWithHalo);
         }
     }
+#endif
     return;
 }
 
@@ -359,6 +366,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPon
 // levelN is the size of the orthotope at level depth
 // This kernel assumes that the grid axes direction coalign with data space
 __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t depth, const uint32_t levelN, uint32_t x0, uint32_t y0, uint32_t nWithHalo) {
+#ifdef DP
 
     // Launch child kernels
     // 1) stopping case
@@ -387,7 +395,7 @@ __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, MTYPE* dataPong, con
     // printf("[%i] node kernel at x=%i  y=%i   size %i x %i\n", depth, x0, y0+n2, n2, n2);
     kernelDynamicParallelismHingedHYRBID<<<gnode, bnode, 0, s3>>>(data, dataPong, n, n2, x0, y0, nWithHalo);
 
+#endif
     return;
 }
 
-#endif

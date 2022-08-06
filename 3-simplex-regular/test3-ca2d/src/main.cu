@@ -9,12 +9,12 @@
 #include "Simplex3DRegular.cuh"
 
 #define PRINT_LIMIT 6
-const uint32_t INNER_REPEATS = 5000;
+const uint32_t INNER_REPEATS = 50;
 
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
     if (argc != 7) {
-        printf("run as ./prog <deviceId> 2^<N> <repeats> <mapType>\nmapType:\n\t0 = bounding box\n\t1 = Hadouken\n\t2 = Dynamic Parallelism\n\t3 = Traditional Dynamic Parallelism\n\t4 = Hybrid Dynamic Parallelism\n");
+        printf("run as ./prog <deviceId> 2^<N> <repeats> <density> <seed> <mapType>\nmapType:\n\t0 = bounding box\n\t1 = Hadouken\n\t2 = Dynamic Parallelism\n\t3 = Traditional Dynamic Parallelism\n\t4 = Hybrid Dynamic Parallelism\n");
         exit(1);
     }
 
