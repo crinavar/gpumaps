@@ -11,7 +11,7 @@
 // Lazy Fix
 #define MTYPE uint32_t
 
-#define MIN_SIZE 16
+#define MIN_SIZE 32
 
 #if MIN_SIZE<BSIZE3DX
 #undef MIN_SIZE

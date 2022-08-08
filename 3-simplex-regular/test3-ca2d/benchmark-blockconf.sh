@@ -14,7 +14,7 @@ ENDN=$8
 DN=$9
 R=${10}
 
-METHODS=("BBox" "Hadouken" "DP")
+METHODS=("BBox" "Hadouken" "DP" "DPVANILLA" "DPHYBRID")
 NM=$((${#METHODS[@]}))
 
 echo "REPEATS=${R}"
@@ -40,7 +40,7 @@ do
             q=$(($q-1))
 
             # Chosen MAP
-            if [ $q -eq 2 ]
+            if [ $q -gt 1 ]
             then
                 echo "make BSIZE3DX=${BS} BSIZE3DY=${BS} BSIZE3DZ=${BS} ARCH=${ARCH} DP=SI"
                 COMPILE=`make BSIZE3DX=${BS} BSIZE3DY=${BS} BSIZE3DZ=${BS} ARCH=${ARCH} DP=SI`

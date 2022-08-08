@@ -9,7 +9,7 @@
 #include "Simplex3DRegular.cuh"
 
 #define PRINT_LIMIT 6
-const uint32_t INNER_REPEATS = 1;
+const uint32_t INNER_REPEATS = 50;
 
 int main(int argc, char** argv) {
     // srand ( time(NULL) );
