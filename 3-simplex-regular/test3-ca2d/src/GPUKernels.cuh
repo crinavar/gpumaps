@@ -203,7 +203,6 @@ __global__ void kernelHadoukenStrip(MTYPE* data, MTYPE* dataPong, const uint32_t
     return;
 }
 
-
 __global__ void kernelDynamicParallelismBruteForce(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
 #ifdef DP
     auto p = (uint3) { originX + blockIdx.x * blockDim.x + threadIdx.x, originY + blockIdx.y * blockDim.y + threadIdx.y, blockIdx.z * blockDim.z + threadIdx.z };
@@ -254,6 +253,9 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
     // Map elements directly to data space, both origins coalign.
     auto threadCoord = boundingBoxMap();
     auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    if (threadCoord.x >= levelN || threadCoord.y >= levelN) {
+        return;
+    }
     if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
@@ -261,7 +263,7 @@ __global__ void kernelDynamicParallelism(MTYPE* data, MTYPE* dataPong, const uin
         if (index < nWithHalo * nWithHalo * nWithHalo) {
             work(data, dataPong, index, dataCoord, nWithHalo);
         }
-    } else {
+    } else if (levelN >= BSIZE3DX) {
         // Out of the simplex region of the grid
         // Directly map threads to data space
         // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
@@ -331,7 +333,6 @@ __global__ void kernelDP_exp(MTYPE* data, MTYPE* dataPong, const uint32_t n, con
 
 //
 __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPong, const uint32_t n, const uint32_t levelN, const uint32_t originX, const uint32_t originY, uint32_t nWithHalo) {
-
 #ifdef DP
     // Map elements directly to data space, both origins coalign.
     const uint32_t levelNminusOne = levelN - 1;
@@ -341,13 +342,13 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, MTYPE* dataPon
         // Out of the simplex region of the grid
         // Directly map threads to data space
         size_t index = (dataCoord.z + 1) * nWithHalo * nWithHalo + (dataCoord.y + 1) * nWithHalo + (dataCoord.x + 1);
+
         if (index < nWithHalo * nWithHalo * nWithHalo) {
             work(data, dataPong, index, dataCoord, nWithHalo);
         }
-    } else {
+    } else if (levelN > BSIZE3DX) {
         // Out of the simplex region of the grid
         // Directly map threads to data space
-        // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
         uint32_t bufferX = threadCoord.x;
         threadCoord.x = originX + (levelNminusOne)-threadCoord.y;
         threadCoord.y = originY + (levelNminusOne)-bufferX;
@@ -398,4 +399,3 @@ __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, MTYPE* dataPong, con
 #endif
     return;
 }
-

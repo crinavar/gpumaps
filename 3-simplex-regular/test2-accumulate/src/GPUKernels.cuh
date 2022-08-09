@@ -229,18 +229,17 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
     // Map elements directly to data space, both origins coalign.
     auto threadCoord = boundingBoxMap();
     auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
-    if (threadCoord.x>=levelN || threadCoord.y>=levelN) {
-    	return;
+    if (threadCoord.x >= levelN || threadCoord.y >= levelN) {
+        return;
     }
     if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
         size_t index = dataCoord.z * n * n + dataCoord.y * n + dataCoord.x;
-
         if (index < n * n * n) {
             work(data, index, threadCoord);
         }
-    } else if (levelN>=BSIZE3DX){
+    } else if (levelN >= BSIZE3DX) {
         // Out of the simplex region of the grid
         // Directly map threads to data space
         // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
@@ -318,7 +317,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t
         if (index < n * n * n) {
             work(data, index, threadCoord);
         }
-    } else if(levelN>BSIZE3DX){
+    } else if (levelN > BSIZE3DX) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
         uint32_t bufferX = threadCoord.x;
@@ -326,7 +325,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t
         threadCoord.y = originY + (levelNminusOne)-bufferX;
         threadCoord.z = (2 * levelN) - 1 - threadCoord.z;
         size_t index = threadCoord.z * n * n + threadCoord.y * n + threadCoord.x;
-    	if (index < n * n * n && isInSimplex(threadCoord, n)) {
+        if (index < n * n * n && isInSimplex(threadCoord, n)) {
             work(data, index, threadCoord);
         }
     }
@@ -344,7 +343,7 @@ __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, const uint32_t n, co
     int n2 = levelN >> 1;
     if (n2 <= MIN_SIZE) {
         dim3 bleaf(BSIZE3DX, BSIZE3DY, BSIZE3DZ), gleaf = dim3((levelN + bleaf.x - 1) / bleaf.x, (levelN + bleaf.y - 1) / bleaf.y, (levelN + bleaf.z - 1) / bleaf.z);
-        //printf("[%i] leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", depth, x0, y0, levelN, levelN, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
+        // printf("[%i] leaf kernel at x=%i  y=%i   size %i x %i (grid (%i,%i,%i)  block(%i,%i,%i))\n", depth, x0, y0, levelN, levelN, gleaf.x, gleaf.y, gleaf.z, bleaf.x, bleaf.y, bleaf.z);
         kernelDynamicParallelismHingedHYRBID<<<gleaf, bleaf>>>(data, n, levelN, x0, y0);
 
         return;
@@ -363,7 +362,7 @@ __global__ void kernelDynamicParallelismHYBRID(MTYPE* data, const uint32_t n, co
     // 3) work in the bot middl
     dim3 bnode(BSIZE3DX, BSIZE3DY, BSIZE3DZ);
     dim3 gnode = dim3((n2 + bnode.x - 1) / bnode.x, (n2 + bnode.y - 1) / bnode.y, (n2 + bnode.z - 1) / bnode.z);
-    //printf("[%i] node kernel at x=%i  y=%i   size %i x %i\n", depth, x0, y0+n2, n2, n2);
+    // printf("[%i] node kernel at x=%i  y=%i   size %i x %i\n", depth, x0, y0+n2, n2, n2);
     kernelDynamicParallelismHingedHYRBID<<<gnode, bnode, 0, s3>>>(data, n, n2, x0, y0);
 
     return;

@@ -23,6 +23,7 @@ uint3 inline __device__ boundingBoxMap() {
 }
 
 __device__ inline void work(MTYPE* data, size_t index, uint3 p) {
+
     return;
 }
 
@@ -232,15 +233,17 @@ __global__ void kernelDynamicParallelism(MTYPE* data, const uint32_t n, const ui
     // Map elements directly to data space, both origins coalign.
     volatile auto threadCoord = boundingBoxMap();
     auto dataCoord = (uint3) { originX + threadCoord.x, originY + threadCoord.y, threadCoord.z };
+    if (threadCoord.x >= levelN || threadCoord.y >= levelN) {
+        return;
+    }
     if (isInSimplex(dataCoord, n)) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
         size_t index = dataCoord.z * n * n + dataCoord.y * n + dataCoord.x;
-
         if (index < n * n * n) {
             work(data, index, threadCoord);
         }
-    } else {
+    } else if (levelN >= BSIZE3DX) {
         // Out of the simplex region of the grid
         // Directly map threads to data space
         // threadCoord = (uint3) { originX + (levelNminusOne)-threadCoord.y, originY + (levelNminusOne)-threadCoord.x, (2 * levelN) - 1 - threadCoord.z };
@@ -318,7 +321,7 @@ __global__ void kernelDynamicParallelismHingedHYRBID(MTYPE* data, const uint32_t
         if (index < n * n * n) {
             work(data, index, threadCoord);
         }
-    } else {
+    } else if (levelN > BSIZE3DX) {
         // In the simplex part of the cube
         // Performing the hinged map to data space
         uint32_t bufferX = threadCoord.x;
